@@ -3,12 +3,13 @@ package driver
 import ip._
 import util._
 import scala.collection.mutable.{ ArrayBuffer, HashMap }
-import java.net.{ InetAddress }
+import java.net.{ InetAddress, DatagramSocket }
 
 object node {
   val MaxReadBuf: Int = 64 * 1024
   val UsageCommand = "We only accept: [i]nterfaces, [r]outes," +
     "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
+  var socket: DatagramSocket = _
   val interfaceArray = new ArrayBuffer[LinkInterface]
   // dst addr, cost, next addr
   val routingTable = new HashMap[InetAddress, (Int, InetAddress)]
@@ -29,8 +30,11 @@ object node {
 
     // create interfaces and routing table
     var id = 0
-    for (link <- ParseLinks.parseLinks(args(0))) {
-      val interface = new LinkInterface(link, id)
+    val lnx = ParseLinks.parseLinks(args(0))
+    socket = new DatagramSocket(lnx.localPhysPort, lnx.localPhysHost)
+
+    for (link <- lnx.links) {
+      val interface = new LinkInterface(link, id, socket)
       interfaceArray += interface
 
       routingTable.put(link.localVirtIP, (16, link.remoteVirtIP))

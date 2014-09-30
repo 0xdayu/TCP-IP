@@ -1,5 +1,5 @@
 package ip
 
 class RIP {
-
+	
 }

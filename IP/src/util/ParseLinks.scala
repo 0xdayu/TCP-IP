@@ -1,65 +1,90 @@
 package util
 
 import scala.io.Source
-import java.io.{FileNotFoundException, IOException}
+import java.io.{ FileNotFoundException, IOException }
 import java.net.InetAddress
 import scala.collection.mutable.MutableList
 
 object ParseLinks {
-	def parseLinks(fileName: String): MutableList[Link] = {
-	  var list = new MutableList[Link];
-	  try {
-	    for (line <- Source.fromFile(fileName).getLines()) {
-	      val ret = parseLine(line)
-	      if (ret == null) {
-	        return list
-	      }
-	      list += ret
-	    }
-	    list
-	  } catch {
-	    case ex: FileNotFoundException => {
-	    	println("Not find the file: " + fileName)
-	      	sys.exit(1)
-	    }
-	    case ex: IOException => {
-	    	println("Had an IOException trying to read that file: " + fileName)
-	    	sys.exit(1)
-	    }
-	  }
-	}
-	
-	def parseLine(line: String): Link = {
-	  val link = new Link
-	  val arr = line split ' '
-	  if (arr.length != 4) {
-	    return null
-	  }	  
-	  
-	  // local interface address
-	  val localArr = arr(0) split ':'
-	  link.localPhysHost = InetAddress.getByName(localArr(0))
-	  
-	  val localPort = localArr(1).toInt
-	  if (localPort < 0x0000 || localPort > 0xffff) {
-	    return null
-	  }
-	  link.localPhysPort = localPort
-	  
-	  link.localVirtIP = InetAddress.getByName(arr(1))
-	  
-	  // next interface address
-	  val remoteArr = arr(2) split ':'
-	  link.remotePhysHost = InetAddress.getByName(localArr(0))
-	  
-	  val remotePort = localArr(1).toInt
-	  if (remotePort < 0x0000 || remotePort > 0xffff) {
-	    return null
-	  }	  
-	  link.remotePhysPort = remotePort
-	  
-	  link.remoteVirtIP = InetAddress.getByName(arr(3))
-	  
-	  link
-	}
+  def parseLinks(fileName: String): Lnx = {
+    try {
+      var count = 0
+      var lnx = new Lnx
+      val list = new Array[Link](Source.fromFile(fileName).getLines().length - 1)
+      for (line <- Source.fromFile(fileName).getLines()) {
+        if (count == 0) {
+          if (!parseFirst(line, lnx)) {
+            println("Error: parseFirst")
+            sys.exit(1)
+          }
+        } else {
+          val ret = parseOthers(line)
+          if (ret == null) {
+            println("Error: parseOthers")
+            sys.exit(1)
+          }
+          list(count) = ret
+        }
+        count += 1
+      }
+      lnx.links = list
+      lnx
+    } catch {
+      case ex: FileNotFoundException => {
+        println("Not find the file: " + fileName)
+        sys.exit(1)
+      }
+      case ex: IOException => {
+        println("Had an IOException trying to read that file: " + fileName)
+        sys.exit(1)
+      }
+      case _: Throwable => {
+        println("Some other error happens")
+        sys.exit(1)
+      }
+    }
+  }
+
+  def parseFirst(line: String, lnx: Lnx): Boolean = {
+    val arr = line split ':'
+    if (arr.length != 2) {
+      return false
+    }
+
+    lnx.localPhysHost = InetAddress.getByName(arr(0))
+
+    lnx.localPhysPort = arr(1).trim.toInt
+    if (lnx.localPhysPort < 0x0000 || lnx.localPhysPort > 0xffff) {
+      return false
+    }
+
+    true
+  }
+
+  def parseOthers(line: String): Link = {
+    val link = new Link
+    val arr = line split ' '
+    if (arr.length != 3) {
+      return null
+    }
+
+    // next interface address
+    val remoteArr = arr(0) split ':'
+    if (remoteArr.length != 2) {
+      return null
+    }
+    link.remotePhysHost = InetAddress.getByName(remoteArr(1))
+    link.remotePhysPort = remoteArr(1).toInt
+    if (link.remotePhysPort < 0x0000 || link.remotePhysPort > 0xffff) {
+      return null
+    }
+
+    // local virtual IP
+    link.localVirtIP = InetAddress.getByName(arr(1))
+
+    // remote virtual IP
+    link.remoteVirtIP = InetAddress.getByName(arr(2))
+
+    link
+  }
 }
