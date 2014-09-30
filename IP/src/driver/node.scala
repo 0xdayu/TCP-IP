@@ -42,6 +42,7 @@ object node {
 
     // threads
     (new Thread(new Receiving(interfaceArray))).start
+    (new Thread(new Sending(interfaceArray))).start
     /*
 		(new Thread(new Routing(interfaceList))).start
 		(new Thread(new Forwarding(interfaceList))).start
