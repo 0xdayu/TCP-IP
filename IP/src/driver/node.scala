@@ -8,8 +8,8 @@ import java.net.{ InetAddress, DatagramSocket }
 object node {
   val UsageCommand = "We only accept: [i]nterfaces, [r]outes," +
     "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
-  var socket: DatagramSocket = _
-  var interfaceArray: Array[LinkInterface] = _
+
+  var nodeInterface: NodeInterface = _
   // dst addr, cost, next addr
   val routingTable = new HashMap[InetAddress, (Int, InetAddress)]
 
@@ -26,23 +26,13 @@ object node {
       sys.exit(1)
     }
 
-    // create interfaces and routing table
-    var id = 0
-    val lnx = ParseLinks.parseLinks(args(0))
-    socket = new DatagramSocket(lnx.localPhysPort, lnx.localPhysHost)
-    interfaceArray = new Array[LinkInterface](lnx.links.length)
+    nodeInterface = new NodeInterface
+    nodeInterface.initSocketAndInterfaces(args(0))
 
-    for (link <- lnx.links) {
-      val interface = new LinkInterface(link, id, socket)
-      interfaceArray(id) = interface
-
-      routingTable.put(link.localVirtIP, (16, link.remoteVirtIP))
-      id += 1
-    }
 
     // threads
-    (new Thread(new Receiving(interfaceArray))).start
-    (new Thread(new Sending(interfaceArray))).start
+    (new Thread(new Receiving(nodeInterface))).start
+    (new Thread(new Sending(nodeInterface))).start
     /*
 		(new Thread(new Routing(interfaceList))).start
 		(new Thread(new Forwarding(interfaceList))).start
@@ -65,7 +55,7 @@ object node {
           case "u" | "up" => interfacesUp(arr)
           //case "s" | "send" => sendPacket(arr)
           case "q" | "quit" =>
-            println("Exit this node"); sys.exit(0)
+            { println("Exit this node"); nodeInterface.socket.close; sys.exit(0) } 
           case _ => println(UsageCommand)
         }
       }
@@ -78,7 +68,7 @@ object node {
     } else {
       println("Interfaces:")
       var i = 0;
-      for (interface <- interfaceArray) {
+      for (interface <- nodeInterface.linkInterfaceArray) {
         interface.linkInterfacePrint
       }
     }
@@ -109,8 +99,8 @@ object node {
     } else if (arr(1).forall(_.isDigit)) {
       val num = arr(1).toInt
 
-      if (num < interfaceArray.length) {
-        interfaceArray(num).bringDown;
+      if (num < nodeInterface.linkInterfaceArray.length) {
+        nodeInterface.linkInterfaceArray(num).bringDown;
       } else {
         println("No such interface")
       }
@@ -125,8 +115,8 @@ object node {
     } else if (arr(1).forall(_.isDigit)) {
       val num = arr(1).toInt
 
-      if (num < interfaceArray.length) {
-        interfaceArray(num).bringUp
+      if (num < nodeInterface.linkInterfaceArray.length) {
+        nodeInterface.linkInterfaceArray(num).bringUp
       } else {
         println("No such interface")
       }

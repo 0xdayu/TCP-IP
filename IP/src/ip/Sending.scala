@@ -1,15 +1,12 @@
 package ip
 
-class Sending(interfaceList: Array[LinkInterface]) extends Runnable {
-	def run() {
-	  //will repeat until the thread ends
-	  while (true){
-	    for (interface <- interfaceList){
-	      //If the interface is down, continue next one
-	      if (interface.isUpOrDown){ 
-	        interface.sendPacket
-	      }
-	    }
-	  }
-	}
+class Sending(nodeInterface: NodeInterface) extends Runnable {
+  def run() {
+    //will repeat until the thread ends
+    while (true) {
+      for (interface <- nodeInterface.linkInterfaceArray) {
+        nodeInterface.sendPacket(interface)
+      }
+    }
+  }
 }

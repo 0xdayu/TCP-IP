@@ -16,4 +16,6 @@ class IPHead{
   
   var saddr: InetAddress = _ // source address
   var daddr: InetAddress = _ // dest address	
+  
+  var options: Int = _ // options
 }

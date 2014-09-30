@@ -83,5 +83,5 @@ object ConvertObject {
     addr
   }
   
-  def headLen(b: Byte): Int = (b & 0xf).asInstanceOf[Int]
+  def headLen(b: Byte): Int = (b & 0xf).asInstanceOf[Int] * 4
 }
