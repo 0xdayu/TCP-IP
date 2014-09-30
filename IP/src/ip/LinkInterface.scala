@@ -34,17 +34,24 @@ class LinkInterface(link: Link, id: Int, socket: DatagramSocket) {
     }
   }
 
-  def recvPacket(buf: Array[Byte]) {
+  def recvPacket() {
     if (isUpOrDown){
       try {
         val pkt = new IPPacket
         
-        // head
-        val len = ConvertObject.headLen(buf(0))
-        val headBuf = new Array[Byte](len)
+        // head first byte
+        val headByteBuf = new Array[Byte](1)
+        val headByte = new DatagramPacket(headByteBuf, 1)
+        socket.receive(headByte)
+        val len = ConvertObject.headLen(headByteBuf(0))
+        
+        // head other bytes
+        val headBuf = new Array[Byte](len - 1)
         val packetHead = new DatagramPacket(headBuf, headBuf.length)
         socket.receive(packetHead)
-        pkt.head = ConvertObject.byteToHead(headBuf)
+        
+        // convert to IPHead
+        pkt.head = ConvertObject.byteToHead(headByteBuf ++ headBuf)
         
         // payload
         val payLoadBuf = new Array[Byte](ConvertNumber.uint16ToInt(pkt.head.totlen) - len)

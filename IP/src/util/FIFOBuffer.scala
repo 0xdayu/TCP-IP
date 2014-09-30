@@ -18,15 +18,13 @@ class FIFOBuffer(capacity: Int) {
 	
 	def isEmpty: Boolean = size == 0
 	
-	def bufferWrite(pkt: IPPacket): Boolean = {
+	def bufferWrite(pkt: IPPacket) {
 	  val len = ConvertObject.headLen(pkt.head.versionAndIhl) + pkt.payLoad.length
 	  if (len > getAvailable) {
 	    println("No enough space to store the packet, drop this packet")
-	    false
 	  } else {
 	    buffer.enqueue(pkt)
 	    size += len
-	    true
 	  }
 	}
 	
