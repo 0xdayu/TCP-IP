@@ -1,6 +1,6 @@
 package ip
 
-import util.{ ParseLinks, FIFOBuffer, ConvertObject, ConvertNumber }
+import util._
 import java.net.{ DatagramSocket, InetAddress, DatagramPacket, InetSocketAddress }
 import java.io.IOException
 import scala.collection.mutable.HashMap
@@ -12,13 +12,13 @@ class NodeInterface {
   var linkInterfaceArray: Array[LinkInterface] = _
   // dst addr, cost, next addr
   val routingTable = new HashMap[InetAddress, (Int, InetAddress)]
-  
+
   val UsageCommand = "We only accept: [i]nterfaces, [r]outes," +
     "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
 
   // remote phys addr + port => interface
   var physAddrToInterface = new HashMap[InetSocketAddress, LinkInterface]
-  
+
   // remote virtual addr => interface
   var virtAddrToInterface = new HashMap[InetAddress, LinkInterface]
 
@@ -49,6 +49,16 @@ class NodeInterface {
       if (!interface.outBuffer.isEmpty) {
         val pkt = interface.outBuffer.bufferRead
         val headBuf: Array[Byte] = ConvertObject.headToByte(pkt.head)
+        
+        // checksum remove
+        headBuf(10) = 0
+        headBuf(11) = 0
+        val checkSum = IPSum.ipsum(headBuf)
+        
+        // fill checksum
+        headBuf(10) = ((checkSum >> 8) & 0xff).asInstanceOf[Byte]
+        headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
+        
         if (headBuf != null) {
           // TODO: static constant MTU
           val totalBuf = headBuf ++ pkt.payLoad
@@ -81,11 +91,20 @@ class NodeInterface {
       val packetHead = new DatagramPacket(headBuf, headBuf.length)
       socket.receive(packetHead)
 
+      val headTotalBuf = headByteBuf ++ headBuf
+
+      // checksum valid
+      val checkSum = IPSum ipsum headTotalBuf
+      if (checkSum != 0) {
+        println("This packet has wrong checksum!")
+        return
+      }
+
       // convert to IPHead
-      pkt.head = ConvertObject.byteToHead(headByteBuf ++ headBuf)
+      pkt.head = ConvertObject.byteToHead(headTotalBuf)
 
       // payload
-      val payLoadBuf = new Array[Byte](ConvertNumber.uint16ToInt(pkt.head.totlen) - len)
+      val payLoadBuf = new Array[Byte](pkt.head.totlen - len)
       val packetPayLoad = new DatagramPacket(payLoadBuf, payLoadBuf.length)
       socket.receive(packetPayLoad)
       pkt.payLoad = payLoadBuf
@@ -109,7 +128,7 @@ class NodeInterface {
     }
 
   }
-  
+
   def printInterfaces(arr: Array[String]) {
     if (arr.length != 1) {
       println(UsageCommand)

@@ -44,17 +44,17 @@ object ConvertObject {
     
     head.tos = ConvertNumber.uint8ToShort(buf(1))
     
-    head.totlen = ((buf(2) << 8) & buf(3) & 0xffff).asInstanceOf[Int]
+    head.totlen = (((buf(2) << 8) | buf(3)) & 0xffff).asInstanceOf[Int]
     
-    head.id = ((buf(4) << 8) & buf(5) & 0xffff).asInstanceOf[Int]
+    head.id = (((buf(4) << 8) | buf(5)) & 0xffff).asInstanceOf[Int]
     
-    head.fragoff = ((buf(6) << 8) & buf(7) & 0xffff).asInstanceOf[Int]
+    head.fragoff = (((buf(6) << 8) | buf(7)) & 0xffff).asInstanceOf[Int]
     
     head.ttl = ConvertNumber.uint8ToShort(buf(8))
     
     head.protocol = ConvertNumber.uint8ToShort(buf(9))
     
-    head.check = ((buf(10) << 8) & buf(11) & 0xffff).asInstanceOf[Int]
+    head.check = (((buf(10) << 8) | buf(11)) & 0xffff).asInstanceOf[Int]
     
     head.saddr = toInetAddr(buf, 12)
     
