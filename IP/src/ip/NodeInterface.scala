@@ -4,6 +4,7 @@ import util._
 import java.net.{ DatagramSocket, InetAddress, DatagramPacket, InetSocketAddress }
 import java.io.IOException
 import scala.collection.mutable.HashMap
+import scala.actors.threadpool.locks.{ReentrantLock, ReentrantReadWriteLock}
 
 class NodeInterface {
   val Rip = 200
@@ -27,6 +28,11 @@ class NodeInterface {
   // remote virtual addr => interface
   var virtAddrToInterface = new HashMap[InetAddress, LinkInterface]
 
+  
+  // without locking UDP, send and receive can be at the same time
+  // read/write lock for routingTable
+  val routingTableLock = new ReentrantReadWriteLock
+  
   def initSocketAndInterfaces(file: String) {
     val lnx = ParseLinks.parseLinks(file)
     localPhysPort = lnx.localPhysPort
@@ -141,7 +147,11 @@ class NodeInterface {
     } else {
       val dstVirtIp = arr(1)
       // Check whether vip is in the routing table
-      if (!routingTable.contains(InetAddress.getByName(dstVirtIp))) {
+      // lock
+      routingTableLock.readLock.lock
+      val flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
+      routingTableLock.readLock.unlock
+      if (!flag) {
         println("Destination Unreachable!")
       } else if (arr(2).forall(_.isDigit)) {
         // Check whether the protocol is test data
@@ -174,20 +184,23 @@ class NodeInterface {
     // send will update checksum
     head.check = 0
 
+    // lock
+    routingTableLock.readLock.lock
     val option = routingTable.get(virtIP)
+    routingTableLock.readLock.unlock
     option match {
       case Some((cost, nextAddr)) => {
         val virtSrcIP = virtAddrToInterface.get(nextAddr)
         virtSrcIP match {
           case Some(interface) => {
             head.saddr = interface.link.localVirtIP
-            
+
             head.daddr = virtIP
 
             pkt.head = head
             pkt.head.id = pkt.hashCode()
 
-            if (interface.isUpOrDown){
+            if (interface.isUpOrDown) {
               interface.outBuffer.bufferWrite(pkt)
             } else {
               println("interface " + interface.id + "down: " + "no way to send out")
@@ -217,6 +230,8 @@ class NodeInterface {
       println(UsageCommand)
     } else {
       println("Routing table:")
+      // lock
+      routingTableLock.readLock.lock
       for (entry <- routingTable) {
         var throughAddr: String = ""
         if (entry._1.getHostAddress() == entry._2._2.getHostAddress()) {
@@ -228,6 +243,7 @@ class NodeInterface {
         println("Route to " + entry._1.getHostAddress() + " with cost " + entry._2._1 +
           ", through " + throughAddr)
       }
+      routingTableLock.readLock.unlock
     }
   }
 

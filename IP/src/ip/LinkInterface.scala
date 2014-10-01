@@ -1,6 +1,7 @@
 package ip
 
 import util._
+import scala.actors.threadpool.locks.ReentrantReadWriteLock
 
 /*
  * Interface as a linker layer
@@ -12,7 +13,7 @@ class LinkInterface(_link: Link, _id: Int) {
   val outBuffer = new FIFOBuffer(MaxBufferSize)
   val link = _link
   val id = _id
-  
+
   def compareIP(ip: String) = ip == getLocalIP
 
   // this is virtual IP as string
@@ -21,29 +22,35 @@ class LinkInterface(_link: Link, _id: Int) {
   // this is virtual IP as string
   def getRemoteIP = link.remoteVirtIP.getHostAddress()
 
-  def isUpOrDown = upOrDown
+  def isUpOrDown = this.synchronized { upOrDown }
 
   def bringDown {
-    if (!isUpOrDown) {
-      upOrDown = false
-      println("interface " + id + "down")
-    } else {
-      println("interface " + id + "already down")
+    this.synchronized {
+      if (!isUpOrDown) {
+        upOrDown = false
+        println("interface " + id + "down")
+      } else {
+        println("interface " + id + "already down")
+      }
     }
   }
 
   def bringUp {
-    if (isUpOrDown) {
-      upOrDown = true;
-      println("interface " + id + "up")
-    } else {
-      println("interface " + id + "already up")
+    this.synchronized {
+      if (isUpOrDown) {
+        upOrDown = true;
+        println("interface " + id + "up")
+      } else {
+        println("interface " + id + "already up")
+      }
     }
   }
 
   def linkInterfacePrint {
-    val str = if (isUpOrDown) "UP" else "DOWN"
-    println("\t" + id + ": " + getLocalIP +
-      "->" + getRemoteIP + ", " + str)
+    this.synchronized {
+      val str = if (isUpOrDown) "UP" else "DOWN"
+      println("\t" + id + ": " + getLocalIP +
+        "->" + getRemoteIP + ", " + str)
+    }
   }
 }

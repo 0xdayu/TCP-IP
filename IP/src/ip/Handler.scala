@@ -5,7 +5,10 @@ object Handler {
 	  //TODO: MUTEX LOCK
 	  //TTL MODIFICATION
 	  val dstIpAddr = packet.head.daddr
+	  // lock
+	  nodeInterface.routingTableLock.readLock.lock
 	  val option = nodeInterface.routingTable.get(dstIpAddr)
+	  nodeInterface.routingTableLock.readLock.unlock
 	  option match{
 	    case Some((cost, nextAddr)) => {
 	      val interface = nodeInterface.virtAddrToInterface.get(nextAddr)
