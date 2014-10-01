@@ -6,13 +6,13 @@ import java.net.InetAddress
 object ConvertObject {
   // helper function
   def headToByte(head: IPHead): Array[Byte] = {
-    val len: Int = headLen(head.versionAndIhl)
+    val len: Int = headLen(ConvertNumber.shortToUint8(head.versionAndIhl))
     val buf = new Array[Byte](len)
     
     // Big-Endian
-    buf(0) = head.versionAndIhl
+    buf(0) = ConvertNumber.shortToUint8(head.versionAndIhl)
     
-    buf(1) = head.tos
+    buf(1) = ConvertNumber.shortToUint8(head.tos)
     
     buf(2) = ((head.totlen >> 8) & 0xff).asInstanceOf[Byte]
     buf(3) = (head.totlen & 0xff).asInstanceOf[Byte]
@@ -23,9 +23,9 @@ object ConvertObject {
     buf(6) = ((head.fragoff >> 8) & 0xff).asInstanceOf[Byte]
     buf(7) = (head.fragoff & 0xff).asInstanceOf[Byte]
     
-    buf(8) = head.ttl
+    buf(8) = ConvertNumber.shortToUint8(head.ttl)
     
-    buf(9) = head.protocol
+    buf(9) = ConvertNumber.shortToUint8(head.protocol)
     
     buf(10) = ((head.check >> 8) & 0xff).asInstanceOf[Byte]
     buf(11) = (head.check & 0xff).asInstanceOf[Byte]
@@ -40,21 +40,21 @@ object ConvertObject {
     val head = new IPHead
     
     // Big-Endian
-    head.versionAndIhl = buf(0)
+    head.versionAndIhl = ConvertNumber.uint8ToShort(buf(0))
     
-    head.tos = buf(1)
+    head.tos = ConvertNumber.uint8ToShort(buf(1))
     
-    head.totlen = ((buf(2) << 8) & buf(3)).asInstanceOf[Short]
+    head.totlen = ((buf(2) << 8) & buf(3) & 0xffff).asInstanceOf[Int]
     
-    head.id = ((buf(4) << 8) & buf(5)).asInstanceOf[Short]
+    head.id = ((buf(4) << 8) & buf(5) & 0xffff).asInstanceOf[Int]
     
-    head.fragoff = ((buf(6) << 8) & buf(7)).asInstanceOf[Short]
+    head.fragoff = ((buf(6) << 8) & buf(7) & 0xffff).asInstanceOf[Int]
     
-    head.ttl = buf(8)
+    head.ttl = ConvertNumber.uint8ToShort(buf(8))
     
-    head.protocol = buf(9)
+    head.protocol = ConvertNumber.uint8ToShort(buf(9))
     
-    head.check = ((buf(10) << 8) & buf(11)).asInstanceOf[Short]
+    head.check = ((buf(10) << 8) & buf(11) & 0xffff).asInstanceOf[Int]
     
     head.saddr = toInetAddr(buf, 12)
     

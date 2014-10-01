@@ -3,19 +3,19 @@ package ip
 import java.net.InetAddress
 
 class IPHead{  
-  var versionAndIhl: Byte = _ // four bits - version, four bits - header length
-  var tos: Byte = _ // type of service
-  var totlen: Short = _ // total length
+  var versionAndIhl: Short = _ // (Byte) four bits - version, four bits - header length
+  var tos: Short = _ // (Byte) type of service
+  var totlen: Int = _ // (Short) total length
   
-  var id: Short = _ // identification
-  var fragoff: Short = _ // fragment offset field
+  var id: Int = _ // (Short) identification
+  var fragoff: Int = _ // (Short) fragment offset field
   
-  var ttl: Byte = _ // time to live
-  var protocol: Byte = _ // protocol
-  var check: Short = _ // checksum
+  var ttl: Short = _ // (Byte) time to live
+  var protocol: Short = _ // (Byte) protocol
+  var check: Int = _ // (Short) checksum
   
   var saddr: InetAddress = _ // source address
   var daddr: InetAddress = _ // dest address	
   
-  var options: Int = _ // options
+  // skip option by ihl (head length)
 }
