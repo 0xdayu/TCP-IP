@@ -19,7 +19,7 @@ class FIFOBuffer(capacity: Int) {
 	def isEmpty: Boolean = size == 0
 	
 	def bufferWrite(pkt: IPPacket) {
-	  val len = ConvertObject.headLen(pkt.head.versionAndIhl) + pkt.payLoad.length
+	  val len = ConvertObject.headLen(ConvertNumber.shortToUint8(pkt.head.versionAndIhl)) + pkt.payLoad.length
 	  if (len > getAvailable) {
 	    println("No enough space to store the packet, drop this packet")
 	  } else {
@@ -33,7 +33,7 @@ class FIFOBuffer(capacity: Int) {
 	    null
 	  } else {
 	    val pkt = buffer.dequeue
-	    size -= ConvertObject.headLen(pkt.head.versionAndIhl) + pkt.payLoad.length
+	    size -= ConvertObject.headLen(ConvertNumber.shortToUint8(pkt.head.versionAndIhl)) + pkt.payLoad.length
 	    pkt
 	  }
 	} 

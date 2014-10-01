@@ -2,7 +2,7 @@ package ip
 
 import java.net.InetAddress
 
-class IPHead{  
+class IPHead{
   var versionAndIhl: Short = _ // (Byte) four bits - version, four bits - header length
   var tos: Short = _ // (Byte) type of service
   var totlen: Int = _ // (Short) total length

@@ -13,7 +13,7 @@ object Handler {
 	        case Some(_interface) =>{
 	          if (_interface.isUpOrDown){
 	            // Decrease TTL by one
-	            packet.head.ttl -= 1
+	            packet.head.ttl = (packet.head.ttl - 1).asInstanceOf[Short]
 	            _interface.outBuffer.bufferWrite(packet)
 	          }
 	        }

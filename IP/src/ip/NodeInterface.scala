@@ -6,6 +6,11 @@ import java.io.IOException
 import scala.collection.mutable.HashMap
 
 class NodeInterface {
+  val Rip = 200
+  val Data = 0
+  val DefaultHeadLength = 20
+  // TODO
+  val MaxTTL = 256
   var localPhysPort: Int = _
   var localPhysHost: InetAddress = _
   var socket: DatagramSocket = _
@@ -49,16 +54,16 @@ class NodeInterface {
       if (!interface.outBuffer.isEmpty) {
         val pkt = interface.outBuffer.bufferRead
         val headBuf: Array[Byte] = ConvertObject.headToByte(pkt.head)
-        
+
         // checksum remove
         headBuf(10) = 0
         headBuf(11) = 0
         val checkSum = IPSum.ipsum(headBuf)
-        
+
         // fill checksum
         headBuf(10) = ((checkSum >> 8) & 0xff).asInstanceOf[Byte]
         headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
-        
+
         if (headBuf != null) {
           // TODO: static constant MTU
           val totalBuf = headBuf ++ pkt.payLoad
@@ -127,6 +132,72 @@ class NodeInterface {
       case ex: IOException => println("recv packet")
     }
 
+  }
+
+  def generateAndSendPacket(arr: Array[String], line: String) {
+    // TODO: maybe user's input may contains 
+    if (arr.length <= 3) {
+      println(UsageCommand)
+    } else {
+      val dstVirtIp = arr(1)
+      // Check whether vip is in the routing table
+      if (!routingTable.contains(InetAddress.getByName(dstVirtIp))) {
+        println("Destination Unreachable!")
+      } else if (arr(2).forall(_.isDigit)) {
+        // Check whether the protocol is test data
+        val proto = arr(2).toInt
+        if (proto == Data) {
+          val userData = line.getBytes().slice((arr(0).length + arr(1).length + arr(2).length + 3), line.length)
+          generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData)
+        } else {
+          println("Unsupport Protocol: " + proto)
+        }
+      } else {
+        println(UsageCommand)
+      }
+    }
+  }
+
+  def generateIPPacket(virtIP: InetAddress, proto: Int, userData: Array[Byte]) {
+    val pkt = new IPPacket
+    pkt.payLoad = userData
+
+    val head = new IPHead
+
+    head.versionAndIhl = ((4 << 4) | DefaultHeadLength).asInstanceOf[Short]
+    // TODO
+    head.tos = 0
+    head.totlen = DefaultHeadLength + userData.length
+    head.fragoff = 0
+    head.ttl = MaxTTL.asInstanceOf[Short]
+    head.protocol = proto.asInstanceOf[Short]
+    // send will update checksum
+    head.check = 0
+
+    val option = routingTable.get(virtIP)
+    option match {
+      case Some((cost, nextAddr)) => {
+        val virtSrcIP = virtAddrToInterface.get(nextAddr)
+        virtSrcIP match {
+          case Some(interface) => {
+            head.saddr = interface.link.localVirtIP
+            
+            head.daddr = virtIP
+
+            pkt.head = head
+            pkt.head.id = pkt.hashCode()
+
+            if (interface.isUpOrDown){
+              interface.outBuffer.bufferWrite(pkt)
+            } else {
+              println("interface " + interface.id + "down: " + "no way to send out")
+            }
+          }
+          case None => println("Fail to get source virtual IP address!")
+        }
+      }
+      case None => println("Destination Unreachable!")
+    }
   }
 
   def printInterfaces(arr: Array[String]) {
