@@ -1,5 +1,0 @@
-package ip
-
-class Routing {
-
-}

@@ -2,23 +2,18 @@ package driver
 
 import ip._
 import util._
-import scala.collection.mutable.{ HashMap }
-import java.net.{ InetAddress, DatagramSocket }
 
 object node {
   val UsageCommand = "We only accept: [i]nterfaces, [r]outes," +
     "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
 
   var nodeInterface: NodeInterface = _
-  // dst addr, cost, next addr
-  val routingTable = new HashMap[InetAddress, (Int, InetAddress)]
 
   /**
    * 1. Input thread (main)
-   * 2. Receiving thread
-   * 3. Routing thread
-   * 4. Forwarding thread
-   * 5. Sending thread
+   * 2. HandlerManager thread
+   * 3. Receiving thread
+   * 4. Sending thread
    */
   def main(args: Array[String]) {
     if (args.length != 1) {
@@ -29,8 +24,13 @@ object node {
     nodeInterface = new NodeInterface
     nodeInterface.initSocketAndInterfaces(args(0))
 
-
+    //register 200 and 0 protocol handler
+    val hm = new HandlerManager(nodeInterface)
+    hm.registerHandler(200, Handler.ripHandler)
+    hm.registerHandler(0, Handler.forwardHandler)
+    
     // threads
+    (new Thread(hm)).start
     (new Thread(new Receiving(nodeInterface))).start
     (new Thread(new Sending(nodeInterface))).start
     /*
@@ -49,10 +49,10 @@ object node {
         println(UsageCommand)
       } else {
         arr(0).trim match {
-          case "i" | "interfaces" => printInterfaces(arr)
-          case "r" | "routes" => printRoutes(arr)
-          case "d" | "down" => interfacesDown(arr)
-          case "u" | "up" => interfacesUp(arr)
+          case "i" | "interfaces" => nodeInterface.printInterfaces(arr)
+          case "r" | "routes" => nodeInterface.printRoutes(arr)
+          case "d" | "down" => nodeInterface.interfacesDown(arr)
+          case "u" | "up" => nodeInterface.interfacesUp(arr)
           //case "s" | "send" => sendPacket(arr)
           case "q" | "quit" =>
             { println("Exit this node"); nodeInterface.socket.close; sys.exit(0) } 
@@ -62,66 +62,5 @@ object node {
     }
   }
 
-  def printInterfaces(arr: Array[String]) {
-    if (arr.length != 1) {
-      println(UsageCommand)
-    } else {
-      println("Interfaces:")
-      var i = 0;
-      for (interface <- nodeInterface.linkInterfaceArray) {
-        interface.linkInterfacePrint
-      }
-    }
-  }
-
-  def printRoutes(arr: Array[String]) {
-    if (arr.length != 1) {
-      println(UsageCommand)
-    } else {
-      println("Routing table:")
-      for (entry <- routingTable) {
-        var throughAddr: String = ""
-        if (entry._1.getHostAddress() == entry._2._2.getHostAddress()) {
-          throughAddr = "self"
-        } else {
-          throughAddr = entry._2._2.getHostAddress()
-        }
-
-        println("Route to " + entry._1.getHostAddress() + " with cost " + entry._2._1 +
-          ", through " + throughAddr)
-      }
-    }
-  }
-
-  def interfacesDown(arr: Array[String]) {
-    if (arr.length != 2) {
-      println(UsageCommand)
-    } else if (arr(1).forall(_.isDigit)) {
-      val num = arr(1).toInt
-
-      if (num < nodeInterface.linkInterfaceArray.length) {
-        nodeInterface.linkInterfaceArray(num).bringDown;
-      } else {
-        println("No such interface")
-      }
-    } else {
-      println("input should be number")
-    }
-  }
-
-  def interfacesUp(arr: Array[String]) {
-    if (arr.length != 2) {
-      println(UsageCommand)
-    } else if (arr(1).forall(_.isDigit)) {
-      val num = arr(1).toInt
-
-      if (num < nodeInterface.linkInterfaceArray.length) {
-        nodeInterface.linkInterfaceArray(num).bringUp
-      } else {
-        println("No such interface")
-      }
-    } else {
-      println("input should be number")
-    }
-  }
+  
 }

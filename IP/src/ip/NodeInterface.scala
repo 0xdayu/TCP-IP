@@ -10,9 +10,17 @@ class NodeInterface {
   var localPhysHost: InetAddress = _
   var socket: DatagramSocket = _
   var linkInterfaceArray: Array[LinkInterface] = _
+  // dst addr, cost, next addr
+  val routingTable = new HashMap[InetAddress, (Int, InetAddress)]
+  
+  val UsageCommand = "We only accept: [i]nterfaces, [r]outes," +
+    "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
 
   // remote phys addr + port => interface
-  var AddrToInterface = new HashMap[InetSocketAddress, LinkInterface]
+  var physAddrToInterface = new HashMap[InetSocketAddress, LinkInterface]
+  
+  // remote virtual addr => interface
+  var virtAddrToInterface = new HashMap[InetAddress, LinkInterface]
 
   def initSocketAndInterfaces(file: String) {
     val lnx = ParseLinks.parseLinks(file)
@@ -29,7 +37,8 @@ class NodeInterface {
       val interface = new LinkInterface(link, id)
       linkInterfaceArray(id) = interface
 
-      AddrToInterface.put(new InetSocketAddress(interface.link.remotePhysHost, interface.link.remotePhysPort), interface)
+      physAddrToInterface.put(new InetSocketAddress(interface.link.remotePhysHost, interface.link.remotePhysPort), interface)
+      virtAddrToInterface.put(interface.link.remoteVirtIP, interface)
       // routingTable.put(link.localVirtIP, (16, link.remoteVirtIP))
       id += 1
     }
@@ -82,7 +91,7 @@ class NodeInterface {
       pkt.payLoad = payLoadBuf
 
       val remote = packetHead.getSocketAddress().asInstanceOf[InetSocketAddress]
-      val option = AddrToInterface.get(remote)
+      val option = physAddrToInterface.get(remote)
       option match {
         case Some(interface) => {
           if (interface.isUpOrDown) {
@@ -99,5 +108,68 @@ class NodeInterface {
       case ex: IOException => println("recv packet")
     }
 
+  }
+  
+  def printInterfaces(arr: Array[String]) {
+    if (arr.length != 1) {
+      println(UsageCommand)
+    } else {
+      println("Interfaces:")
+      var i = 0;
+      for (interface <- linkInterfaceArray) {
+        interface.linkInterfacePrint
+      }
+    }
+  }
+
+  def printRoutes(arr: Array[String]) {
+    if (arr.length != 1) {
+      println(UsageCommand)
+    } else {
+      println("Routing table:")
+      for (entry <- routingTable) {
+        var throughAddr: String = ""
+        if (entry._1.getHostAddress() == entry._2._2.getHostAddress()) {
+          throughAddr = "self"
+        } else {
+          throughAddr = entry._2._2.getHostAddress()
+        }
+
+        println("Route to " + entry._1.getHostAddress() + " with cost " + entry._2._1 +
+          ", through " + throughAddr)
+      }
+    }
+  }
+
+  def interfacesDown(arr: Array[String]) {
+    if (arr.length != 2) {
+      println(UsageCommand)
+    } else if (arr(1).forall(_.isDigit)) {
+      val num = arr(1).toInt
+
+      if (num < linkInterfaceArray.length) {
+        linkInterfaceArray(num).bringDown;
+      } else {
+        println("No such interface")
+      }
+    } else {
+      println("input should be number")
+    }
+  }
+
+  def interfacesUp(arr: Array[String]) {
+    if (arr.length != 2) {
+      println(UsageCommand)
+    } else if (arr(1).forall(_.isDigit)) {
+      val num = arr(1).toInt
+
+      if (num < linkInterfaceArray.length) {
+        linkInterfaceArray(num).bringUp
+      } else {
+        println("No such interface")
+      }
+    } else {
+      println("input should be number")
+    }
   }
 }
