@@ -198,7 +198,8 @@ class NodeInterface {
             head.daddr = virtIP
 
             pkt.head = head
-            pkt.head.id = pkt.hashCode()
+            // only need final 16 bits
+            pkt.head.id = (pkt.hashCode() & 0xffff).asInstanceOf[Int]
 
             if (interface.isUpOrDown) {
               interface.outBuffer.bufferWrite(pkt)

@@ -2,6 +2,7 @@ package ip
 
 import util._
 import scala.actors.threadpool.locks.ReentrantReadWriteLock
+import java.net.InetAddress
 
 /*
  * Interface as a linker layer
@@ -14,13 +15,13 @@ class LinkInterface(_link: Link, _id: Int) {
   val link = _link
   val id = _id
 
-  def compareIP(ip: String) = ip == getLocalIP
+  def compareIP(ip: InetAddress) = ip == getLocalIP
 
-  // this is virtual IP as string
-  def getLocalIP = link.localVirtIP.getHostAddress()
+  // this is virtual IP
+  def getLocalIP = link.localVirtIP
 
-  // this is virtual IP as string
-  def getRemoteIP = link.remoteVirtIP.getHostAddress()
+  // this is virtual IP
+  def getRemoteIP = link.remoteVirtIP
 
   def isUpOrDown = this.synchronized { upOrDown }
 
