@@ -34,7 +34,7 @@ object ConvertObject {
 
     toByteAddr(buf, 12, head.saddr)
     toByteAddr(buf, 16, head.daddr)
-
+    
     buf
   }
 
@@ -116,7 +116,7 @@ object ConvertObject {
   def toByteAddr(buf: Array[Byte], i: Int, addr: InetAddress) {
     var count = i
     for (b <- addr.getAddress()) {
-      buf(i) = b
+      buf(count) = b
       count += 1
     }
   }

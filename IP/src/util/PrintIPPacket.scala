@@ -1,10 +1,11 @@
 package util
 
 import ip.{ IPPacket, IPHead, RIP }
+import java.text.DecimalFormat
 
 object PrintIPPacket {
   def printIPPacket(packet: IPPacket, isHeadBinary: Boolean, isPayloadBinary: Boolean, isRIP: Boolean) {
-    println("========================IP Head=======================")
+    println("========================IP Head==========================")
 
     if (isHeadBinary) {
       printIPHeadAsBinary(packet.head)
@@ -34,32 +35,34 @@ object PrintIPPacket {
 
   def printBinary(bArray: Array[Byte]) {
     var count = 0
+    val numFormat = new DecimalFormat("00000000")
     for (b <- bArray) {
       if (count == 4) {
         count = 0
         println
       }
-      print(Integer.toBinaryString(b & 0xff) + " | ")
+      print(numFormat.format((Integer.valueOf(Integer.toBinaryString(b & 0xff)))) + "  |  ")
       count += 1
     }
+    println
   }
 
   def printIPHeadAsString(head: IPHead) {
-    println("Version:\t" + ((head.versionAndIhl >> 8) & 0xff).asInstanceOf[Int])
-    println("Header length:\t" + (head.versionAndIhl & 0xff).asInstanceOf[Int] * 4)
+    println("Version:\t\t" + ((head.versionAndIhl >> 4) & 0xf).asInstanceOf[Int])
+    println("Header length:\t\t" + (head.versionAndIhl & 0xf).asInstanceOf[Int] * 4)
     println("Type of service:\t" + head.tos)
-    println("Total length:\t" + head.totlen)
+    println("Total length:\t\t" + head.totlen)
 
-    println("Identification:\t" + head.id)
-    println("Don't Fragment:\t" + (head.fragoff & (1 << 14)))
-    println("More Fragments:\t" + (head.fragoff & (1 << 13)))
+    println("Identification:\t\t" + head.id)
+    println("Don't Fragment:\t\t" + (head.fragoff & (1 << 14)))
+    println("More Fragments:\t\t" + (head.fragoff & (1 << 13)))
     println("Fragment Offset:\t" + (head.fragoff & ~(1 << 14) & ~(1 << 13)) * 8)
 
-    println("Time to live:\t" + head.ttl)
+    println("Time to live:\t\t" + head.ttl)
     println("The protocol number:\t" + head.protocol)
-    println("The check sum:\t" + head.check)
+    println("The check sum:\t\t" + head.check)
 
-    println("Source address:\t" + head.saddr.getHostAddress)
+    println("Source address:\t\t" + head.saddr.getHostAddress)
     println("Destination address:\t" + head.daddr.getHostAddress)
   }
 

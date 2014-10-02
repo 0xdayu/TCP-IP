@@ -4,6 +4,7 @@ import scala.collection.mutable.HashMap
 
 class HandlerManager(nodeInterface: NodeInterface) extends Runnable {
   type handlerType = (IPPacket, NodeInterface) => Unit
+  var done = true
 
   val registeredHandlerMap = new HashMap[Int, handlerType]
 
@@ -12,9 +13,8 @@ class HandlerManager(nodeInterface: NodeInterface) extends Runnable {
   }
 
   def run() {
-    while (true) {
+    while (done) {
       for (interface <- nodeInterface.linkInterfaceArray) {
-        //TODO: MUTEX LOCK
         if (interface.isUpOrDown && !interface.inBuffer.isEmpty) {
           val pkt = interface.inBuffer.bufferRead
           val option = registeredHandlerMap.get(pkt.head.protocol)
@@ -25,5 +25,9 @@ class HandlerManager(nodeInterface: NodeInterface) extends Runnable {
         }
       }
     }
+  }
+
+  def cancel() {
+    done = false
   }
 }

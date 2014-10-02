@@ -1,12 +1,20 @@
 package ip
 
 class Sending(nodeInterface: NodeInterface) extends Runnable {
+  var done = true
+  
   def run() {
     //will repeat until the thread ends
-    while (true) {
+    while (done) {
       for (interface <- nodeInterface.linkInterfaceArray) {
-        nodeInterface.sendPacket(interface)
+        if (interface.isUpOrDown) {
+          nodeInterface.sendPacket(interface)
+        }
       }
     }
+  }
+  
+  def cancel() {
+    done = false
   }
 }

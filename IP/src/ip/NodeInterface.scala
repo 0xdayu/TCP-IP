@@ -4,14 +4,19 @@ import util._
 import java.net.{ DatagramSocket, InetAddress, DatagramPacket, InetSocketAddress }
 import java.io.IOException
 import scala.collection.mutable.HashMap
-import scala.actors.threadpool.locks.{ReentrantLock, ReentrantReadWriteLock}
+import scala.actors.threadpool.locks.{ ReentrantLock, ReentrantReadWriteLock }
 
 class NodeInterface {
   val Rip = 200
   val Data = 0
+  val DefaultVersion = 4
   val DefaultHeadLength = 20
-  // TODO
-  val MaxTTL = 256
+  val DefaultMTU = 1400
+  val MaxPacket = 64 * 1024
+  val MaxTTL = 16
+
+  var idCount = 0
+
   var localPhysPort: Int = _
   var localPhysHost: InetAddress = _
   var socket: DatagramSocket = _
@@ -19,7 +24,7 @@ class NodeInterface {
   // dst addr, cost, next addr
   val routingTable = new HashMap[InetAddress, (Int, InetAddress)]
 
-  val UsageCommand = "We only accept: [i]nterfaces, [r]outes," +
+  val UsageCommand = "We only accept: [h]elp, [i]nterfaces, [r]outes," +
     "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
 
   // remote phys addr + port => interface
@@ -28,11 +33,10 @@ class NodeInterface {
   // remote virtual addr => interface
   var virtAddrToInterface = new HashMap[InetAddress, LinkInterface]
 
-  
   // without locking UDP, send and receive can be at the same time
   // read/write lock for routingTable
   val routingTableLock = new ReentrantReadWriteLock
-  
+
   def initSocketAndInterfaces(file: String) {
     val lnx = ParseLinks.parseLinks(file)
     localPhysPort = lnx.localPhysPort
@@ -50,7 +54,9 @@ class NodeInterface {
 
       physAddrToInterface.put(new InetSocketAddress(interface.link.remotePhysHost, interface.link.remotePhysPort), interface)
       virtAddrToInterface.put(interface.link.remoteVirtIP, interface)
-      // routingTable.put(link.localVirtIP, (16, link.remoteVirtIP))
+
+      //XXXXXXXXXXXXXXX test
+      routingTable.put(link.remoteVirtIP, (1, link.remoteVirtIP))
       id += 1
     }
   }
@@ -64,21 +70,30 @@ class NodeInterface {
         // checksum remove
         headBuf(10) = 0
         headBuf(11) = 0
+
         val checkSum = IPSum.ipsum(headBuf)
+        print(checkSum)
+        pkt.head.check = (checkSum & 0xffff).asInstanceOf[Int]
 
         // fill checksum
         headBuf(10) = ((checkSum >> 8) & 0xff).asInstanceOf[Byte]
         headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
 
+        // XXXXXXXX Test
+        PrintIPPacket.printIPPacket(pkt, false, false, false)
+        PrintIPPacket.printIPPacket(pkt, true, true, false)
+
         if (headBuf != null) {
           // TODO: static constant MTU
           val totalBuf = headBuf ++ pkt.payLoad
+
           val packet = new DatagramPacket(totalBuf, totalBuf.length, interface.link.remotePhysHost, interface.link.remotePhysPort)
+
           try {
             socket.send(packet)
           } catch {
             // disconnect
-            case ex: IOException => println("send packet")
+            case ex: IOException => println("Error: send packet, cannot reach that remotePhysHost")
           }
         }
       }
@@ -91,22 +106,19 @@ class NodeInterface {
     try {
       val pkt = new IPPacket
 
+      val maxBuf = Array.ofDim[Byte](MaxPacket)
+      val packet = new DatagramPacket(maxBuf, MaxPacket)
+      socket.receive(packet)
+
       // head first byte
-      val headByteBuf = Array.ofDim[Byte](1)
-      val headByte = new DatagramPacket(headByteBuf, 1)
-      socket.receive(headByte)
-      val len = ConvertObject.headLen(headByteBuf(0))
+      val len = ConvertObject.headLen(maxBuf(0))
 
       // head other bytes
-      val headBuf = Array.ofDim[Byte](len - 1)
-      val packetHead = new DatagramPacket(headBuf, headBuf.length)
-      socket.receive(packetHead)
-
-      val headTotalBuf = headByteBuf ++ headBuf
+      val headTotalBuf = maxBuf.slice(0, len)
 
       // checksum valid
       val checkSum = IPSum ipsum headTotalBuf
-      if (checkSum != 0) {
+      if ((checkSum & 0xfff) != 0) {
         println("This packet has wrong checksum!")
         return
       }
@@ -115,12 +127,9 @@ class NodeInterface {
       pkt.head = ConvertObject.byteToHead(headTotalBuf)
 
       // payload
-      val payLoadBuf = Array.ofDim[Byte](pkt.head.totlen - len)
-      val packetPayLoad = new DatagramPacket(payLoadBuf, payLoadBuf.length)
-      socket.receive(packetPayLoad)
-      pkt.payLoad = payLoadBuf
+      pkt.payLoad = maxBuf.slice(len, pkt.head.totlen)
 
-      val remote = packetHead.getSocketAddress().asInstanceOf[InetSocketAddress]
+      val remote = packet.getSocketAddress().asInstanceOf[InetSocketAddress]
       val option = physAddrToInterface.get(remote)
       option match {
         case Some(interface) => {
@@ -135,7 +144,7 @@ class NodeInterface {
 
     } catch {
       // disconnect
-      case ex: IOException => println("recv packet")
+      case ex: IOException => println("Close the socket")
     }
 
   }
@@ -149,7 +158,15 @@ class NodeInterface {
       // Check whether vip is in the routing table
       // lock
       routingTableLock.readLock.lock
-      val flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
+
+      var flag = false
+      try {
+        flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
+      } catch {
+        case _: Throwable =>
+          println("Invalid IP address")
+          return
+      }
       routingTableLock.readLock.unlock
       if (!flag) {
         println("Destination Unreachable!")
@@ -158,7 +175,11 @@ class NodeInterface {
         val proto = arr(2).toInt
         if (proto == Data) {
           val userData = line.getBytes().slice((arr(0).length + arr(1).length + arr(2).length + 3), line.length)
-          generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData)
+          if (userData.length > DefaultMTU - DefaultHeadLength) {
+            println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + userData.length + DefaultHeadLength)
+          } else {
+            generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData)
+          }
         } else {
           println("Unsupport Protocol: " + proto)
         }
@@ -174,10 +195,20 @@ class NodeInterface {
 
     val head = new IPHead
 
-    head.versionAndIhl = ((4 << 4) | DefaultHeadLength).asInstanceOf[Short]
+    head.versionAndIhl = ((DefaultVersion << 4) | (DefaultHeadLength / 4)).asInstanceOf[Short]
     // TODO
     head.tos = 0
     head.totlen = DefaultHeadLength + userData.length
+    // only need final 16 bits: 0 ~ 65535
+    // for fragmentation
+    head.id = idCount
+
+    if (idCount == 65535) {
+      idCount = 0
+    } else {
+      idCount += 1
+    }
+
     head.fragoff = 0
     head.ttl = MaxTTL.asInstanceOf[Short]
     head.protocol = proto.asInstanceOf[Short]
@@ -198,8 +229,6 @@ class NodeInterface {
             head.daddr = virtIP
 
             pkt.head = head
-            // only need final 16 bits
-            pkt.head.id = (pkt.hashCode() & 0xffff).asInstanceOf[Int]
 
             if (interface.isUpOrDown) {
               interface.outBuffer.bufferWrite(pkt)

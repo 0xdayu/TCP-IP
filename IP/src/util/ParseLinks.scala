@@ -75,7 +75,8 @@ object ParseLinks {
       return null
     }
 
-    link.remotePhysHost = InetAddress.getByName(remoteArr(1))
+    link.remotePhysHost = InetAddress.getByName(remoteArr(0))
+
     link.remotePhysPort = remoteArr(1).toInt
     if (link.remotePhysPort < 0x0000 || link.remotePhysPort > 0xffff) {
       return null

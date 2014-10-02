@@ -9,7 +9,7 @@ import java.net.InetAddress
  */
 class LinkInterface(_link: Link, _id: Int) {
   private var upOrDown: Boolean = true // up is true, down is false
-  private val MaxBufferSize = 64 * 1024
+  private val MaxBufferSize = 1024 * 1024 // 1MB
   val inBuffer = new FIFOBuffer(MaxBufferSize)
   val outBuffer = new FIFOBuffer(MaxBufferSize)
   val link = _link
@@ -51,7 +51,7 @@ class LinkInterface(_link: Link, _id: Int) {
     this.synchronized {
       val str = if (isUpOrDown) "UP" else "DOWN"
       println("\t" + id + ": " + getLocalIP.getHostAddress +
-        "->" + getRemoteIP.getHostAddress + ", " + str)
+        " -> " + getRemoteIP.getHostAddress + ", " + str)
     }
   }
 }

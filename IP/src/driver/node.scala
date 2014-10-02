@@ -4,7 +4,7 @@ import ip._
 import util._
 
 object node {
-  val UsageCommand = "We only accept: [i]nterfaces, [r]outes," +
+  val UsageCommand = "We only accept: [h]elp, [i]nterfaces, [r]outes," +
     "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
 
   var nodeInterface: NodeInterface = _
@@ -29,10 +29,17 @@ object node {
     hm.registerHandler(nodeInterface.Rip, Handler.ripHandler)
     hm.registerHandler(nodeInterface.Data, Handler.forwardHandler)
 
+    val rece = new Receiving(nodeInterface)
+    val send = new Sending(nodeInterface)
+
     // threads
-    (new Thread(hm)).start
-    (new Thread(new Receiving(nodeInterface))).start
-    (new Thread(new Sending(nodeInterface))).start
+    val hmThread = new Thread(hm)
+    val receThread = new Thread(rece)
+    val sendThread = new Thread(send)
+
+    hmThread.start
+    receThread.start
+    sendThread.start
 
     println("Node all set [\"[q]uit\" to exit]")
 
@@ -51,7 +58,14 @@ object node {
           case "u" | "up" => nodeInterface.interfacesUp(arr)
           case "s" | "send" => nodeInterface.generateAndSendPacket(arr, line)
           case "q" | "quit" =>
-            { println("Exit this node"); nodeInterface.socket.close; sys.exit(0) }
+            {
+              nodeInterface.socket.close
+              rece.cancel
+              hm.cancel
+              send.cancel
+              println("Exit this node")
+              sys.exit(0)
+            }
           case _ => println(UsageCommand)
         }
       }
