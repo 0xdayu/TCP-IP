@@ -27,22 +27,22 @@ class LinkInterface(_link: Link, _id: Int) {
 
   def bringDown {
     this.synchronized {
-      if (!isUpOrDown) {
+      if (upOrDown) {
         upOrDown = false
-        println("interface " + id + "down")
+        println("interface " + id + " down")
       } else {
-        println("interface " + id + "already down")
+        println("interface " + id + " already down")
       }
     }
   }
 
   def bringUp {
     this.synchronized {
-      if (isUpOrDown) {
+      if (!upOrDown) {
         upOrDown = true;
-        println("interface " + id + "up")
+        println("interface " + id + " up")
       } else {
-        println("interface " + id + "already up")
+        println("interface " + id + " already up")
       }
     }
   }
@@ -50,8 +50,8 @@ class LinkInterface(_link: Link, _id: Int) {
   def linkInterfacePrint {
     this.synchronized {
       val str = if (isUpOrDown) "UP" else "DOWN"
-      println("\t" + id + ": " + getLocalIP +
-        "->" + getRemoteIP + ", " + str)
+      println("\t" + id + ": " + getLocalIP.getHostAddress +
+        "->" + getRemoteIP.getHostAddress + ", " + str)
     }
   }
 }

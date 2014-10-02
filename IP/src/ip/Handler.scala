@@ -9,7 +9,7 @@ object Handler {
     // local interfaces check
     for (interface <- nodeInterface.linkInterfaceArray) {
       if (interface.compareIP(dstIpAddr)) {
-        PrintIPPacket.printIPPacket(packet, false, false)
+        PrintIPPacket.printIPPacket(packet, false, false, false)
         return
       }
     }

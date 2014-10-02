@@ -10,7 +10,7 @@ object ParseLinks {
     try {
       var count = 0
       var lnx = new Lnx
-      val list = new Array[Link](Source.fromFile(fileName).getLines().length - 1)
+      val list = Array.ofDim[Link](Source.fromFile(fileName).getLines().length - 1)
       for (line <- Source.fromFile(fileName).getLines()) {
         if (count == 0) {
           if (!parseFirst(line, lnx)) {
@@ -23,7 +23,8 @@ object ParseLinks {
             println("Error: parseOthers")
             sys.exit(1)
           }
-          list(count) = ret
+
+          list(count - 1) = ret
         }
         count += 1
       }
@@ -73,6 +74,7 @@ object ParseLinks {
     if (remoteArr.length != 2) {
       return null
     }
+
     link.remotePhysHost = InetAddress.getByName(remoteArr(1))
     link.remotePhysPort = remoteArr(1).toInt
     if (link.remotePhysPort < 0x0000 || link.remotePhysPort > 0xffff) {
