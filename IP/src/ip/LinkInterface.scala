@@ -7,7 +7,7 @@ import java.net.InetAddress
 /*
  * Interface as a linker layer
  */
-class LinkInterface(_link: Link, _id: Int) {
+class LinkInterface(_link: Link, _id: Int, nodeInterface: NodeInterface) {
   private var upOrDown: Boolean = true // up is true, down is false
   private val MaxBufferSize = 1024 * 1024 // 1MB
   val inBuffer = new FIFOBuffer(MaxBufferSize)
@@ -48,7 +48,9 @@ class LinkInterface(_link: Link, _id: Int) {
   def bringUp {
     this.synchronized {
       if (!upOrDown) {
-        upOrDown = true;
+        upOrDown = true
+        // up and need to request 
+        nodeInterface.ripRequest(getRemoteIP)
         println("interface " + id + " up")
       } else {
         println("interface " + id + " already up")

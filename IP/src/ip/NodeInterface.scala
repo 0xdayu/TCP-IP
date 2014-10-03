@@ -14,6 +14,9 @@ class NodeInterface {
   val DefaultMTU = 1400
   val MaxPacket = 64 * 1024
   val MaxTTL = 16
+  val RIPInifinity = 16
+  val RIPRequest = 1
+  val RIPResponse = 2
 
   var idCount = 0
 
@@ -49,15 +52,15 @@ class NodeInterface {
     // init link interfaces
     var id = 0
     for (link <- lnx.links) {
-      val interface = new LinkInterface(link, id)
+      val interface = new LinkInterface(link, id, this)
       linkInterfaceArray(id) = interface
 
       physAddrToInterface.put(new InetSocketAddress(interface.link.remotePhysHost, interface.link.remotePhysPort), interface)
       virtAddrToInterface.put(interface.link.remoteVirtIP, interface)
 
-      //XXXXXXXXXXXXXXX test
-      //routingTable.put(InetAddress.getByName("192.168.0.3"), (1, InetAddress.getByName("192.168.0.1")))
-      routingTable.put(InetAddress.getByName("192.168.0.3"), (1, InetAddress.getByName("192.168.0.3")))
+      // initial routing table
+      routingTable.put(interface.getRemoteIP, (1, interface.getRemoteIP))
+
       id += 1
     }
   }
@@ -186,7 +189,7 @@ class NodeInterface {
           if (userData.length > DefaultMTU - DefaultHeadLength) {
             println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + userData.length + DefaultHeadLength)
           } else {
-            generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData)
+            generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData, false)
           }
         } else {
           println("Unsupport Protocol: " + proto)
@@ -197,7 +200,32 @@ class NodeInterface {
     }
   }
 
-  def generateIPPacket(virtIP: InetAddress, proto: Int, userData: Array[Byte]) {
+  def ripRequest(virtIP: InetAddress) {
+    if (virtIP == null) {
+      for (interface <- linkInterfaceArray) {
+        val rip = new RIP
+        rip.command = RIPRequest
+        rip.numEntries = 0
+        rip.entries = Array.empty
+        val userData = ConvertObject.RIPToByte(rip)
+        generateIPPacket(interface.getRemoteIP, Rip, userData, false)
+      }
+    } else {
+      val rip = new RIP
+      rip.command = RIPRequest
+      rip.numEntries = 0
+      rip.entries = Array.empty
+      val userData = ConvertObject.RIPToByte(rip)
+      generateIPPacket(virtIP, Rip, userData, false)
+    }
+  }
+
+  def ripResponse(virtIP: InetAddress, rip: RIP) {
+    val userData = ConvertObject.RIPToByte(rip)
+    generateIPPacket(virtIP, Rip, userData, false)
+  }
+
+  def generateIPPacket(virtIP: InetAddress, proto: Int, userData: Array[Byte], checkTable: Boolean) {
     val pkt = new IPPacket
     pkt.payLoad = userData
 
@@ -222,31 +250,51 @@ class NodeInterface {
     // send will update checksum
     head.check = 0
 
-    // lock
-    routingTableLock.readLock.lock
-    val option = routingTable.get(virtIP)
-    routingTableLock.readLock.unlock
-    option match {
-      case Some((cost, nextAddr)) => {
-        val virtSrcIP = virtAddrToInterface.get(nextAddr)
-        virtSrcIP match {
-          case Some(interface) => {
-            head.saddr = interface.link.localVirtIP
+    if (checkTable) {
+      // lock
+      routingTableLock.readLock.lock
+      val option = routingTable.get(virtIP)
+      routingTableLock.readLock.unlock
+      option match {
+        case Some((cost, nextAddr)) => {
+          val virtSrcIP = virtAddrToInterface.get(nextAddr)
+          virtSrcIP match {
+            case Some(interface) => {
+              head.saddr = interface.link.localVirtIP
 
-            head.daddr = virtIP
+              head.daddr = virtIP
 
-            pkt.head = head
+              pkt.head = head
 
-            if (interface.isUpOrDown) {
-              interface.outBuffer.bufferWrite(pkt)
-            } else {
-              println("interface " + interface.id + "down: " + "no way to send out")
+              if (interface.isUpOrDown) {
+                interface.outBuffer.bufferWrite(pkt)
+              } else {
+                println("interface " + interface.id + "down: " + "no way to send out")
+              }
             }
+            case None => println("Fail to get source virtual IP address!")
           }
-          case None => println("Fail to get source virtual IP address!")
         }
+        case None => println("Destination Unreachable!")
       }
-      case None => println("Destination Unreachable!")
+    } else {
+      val virtSrcIP = virtAddrToInterface.get(virtIP)
+      virtSrcIP match {
+        case Some(interface) => {
+          head.saddr = interface.link.localVirtIP
+
+          head.daddr = virtIP
+
+          pkt.head = head
+
+          if (interface.isUpOrDown) {
+            interface.outBuffer.bufferWrite(pkt)
+          } else {
+            println("interface " + interface.id + "down: " + "no way to send out")
+          }
+        }
+        case None => println("Fail to get source virtual IP address!")
+      }
     }
   }
 

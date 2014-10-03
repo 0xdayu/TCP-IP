@@ -21,7 +21,11 @@ object PrintIPPacket {
       if (isRIP) {
         printRIPAsString(ConvertObject.byteToRIP(packet.payLoad))
       } else {
-        println(new String(packet.payLoad.map(_.toChar)))
+        if (packet.payLoad.isEmpty) {
+          println("Nothing in payload")
+        } else {
+          println(new String(packet.payLoad.map(_.toChar)))
+        }
       }
     }
 
