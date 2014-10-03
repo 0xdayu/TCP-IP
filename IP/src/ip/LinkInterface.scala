@@ -29,6 +29,15 @@ class LinkInterface(_link: Link, _id: Int) {
     this.synchronized {
       if (upOrDown) {
         upOrDown = false
+
+        // clean inBuffer/outBuffer
+        while (!inBuffer.isEmpty) {
+          inBuffer.bufferRead
+        }
+        while (!outBuffer.isEmpty) {
+          outBuffer.bufferRead
+        }
+
         println("interface " + id + " down")
       } else {
         println("interface " + id + " already down")

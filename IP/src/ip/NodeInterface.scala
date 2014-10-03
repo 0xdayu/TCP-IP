@@ -56,7 +56,8 @@ class NodeInterface {
       virtAddrToInterface.put(interface.link.remoteVirtIP, interface)
 
       //XXXXXXXXXXXXXXX test
-      routingTable.put(link.remoteVirtIP, (1, link.remoteVirtIP))
+      //routingTable.put(InetAddress.getByName("192.168.0.3"), (1, InetAddress.getByName("192.168.0.1")))
+      routingTable.put(InetAddress.getByName("192.168.0.3"), (1, InetAddress.getByName("192.168.0.3")))
       id += 1
     }
   }
@@ -98,7 +99,7 @@ class NodeInterface {
         }
       }
     } else {
-      println("interface " + interface.id + " down")
+      println("Send: interface " + interface.id + " down, drop the packet")
     }
   }
 
@@ -136,7 +137,7 @@ class NodeInterface {
           if (interface.isUpOrDown) {
             interface.inBuffer.bufferWrite(pkt)
           } else {
-            println("interface " + interface.id + "down")
+            println("Receive: interface " + interface.id + " down, drop the packet")
           }
         }
         case None => println("Receiving packet from " + remote.getHostString() + ":" + remote.getPort())
