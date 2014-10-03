@@ -46,7 +46,8 @@ object node {
     while (true) {
       print("> ")
       val line = readLine()
-      val arr = line split " "
+      val arrSplit = line split " "
+      val arr = arrSplit.filterNot(_ == "")
       if (arr.length == 0) {
         println(UsageCommand)
       } else {
@@ -75,7 +76,7 @@ object node {
   def printHelp() {
     println("*****************************************************************************")
     println(" [h]elp\t\t\t\tHelp Printing")
-    println(" [i]nterface\t\t\tInterface information (local and remote IP)")
+    println(" [i]nterfaces\t\t\tInterface information (local and remote IP)")
     println(" [r]outes\t\t\tRouting table")
     println(" [d]own <integer>\t\tBring one interface down")
     println(" [u]p <integer>\t\t\tBring one interface up")

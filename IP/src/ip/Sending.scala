@@ -2,7 +2,7 @@ package ip
 
 class Sending(nodeInterface: NodeInterface) extends Runnable {
   var done = true
-  
+
   def run() {
     //will repeat until the thread ends
     while (done) {
@@ -13,7 +13,7 @@ class Sending(nodeInterface: NodeInterface) extends Runnable {
       }
     }
   }
-  
+
   def cancel() {
     done = false
   }

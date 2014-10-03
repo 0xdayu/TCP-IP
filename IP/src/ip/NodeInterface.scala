@@ -72,7 +72,7 @@ class NodeInterface {
         headBuf(11) = 0
 
         val checkSum = IPSum.ipsum(headBuf)
-        print(checkSum)
+
         pkt.head.check = (checkSum & 0xffff).asInstanceOf[Int]
 
         // fill checksum
@@ -150,7 +150,6 @@ class NodeInterface {
   }
 
   def generateAndSendPacket(arr: Array[String], line: String) {
-    // TODO: maybe user's input may contains 
     if (arr.length <= 3) {
       println(UsageCommand)
     } else {
@@ -174,7 +173,10 @@ class NodeInterface {
         // Check whether the protocol is test data
         val proto = arr(2).toInt
         if (proto == Data) {
-          val userData = line.getBytes().slice((arr(0).length + arr(1).length + arr(2).length + 3), line.length)
+
+          val len = line.indexOf(arr(2), line.indexOf(arr(1)) + arr(1).length) + 1 + arr(2).length
+          val userData = line.getBytes().slice(len, line.length)
+
           if (userData.length > DefaultMTU - DefaultHeadLength) {
             println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + userData.length + DefaultHeadLength)
           } else {
@@ -196,7 +198,6 @@ class NodeInterface {
     val head = new IPHead
 
     head.versionAndIhl = ((DefaultVersion << 4) | (DefaultHeadLength / 4)).asInstanceOf[Short]
-    // TODO
     head.tos = 0
     head.totlen = DefaultHeadLength + userData.length
     // only need final 16 bits: 0 ~ 65535
@@ -280,32 +281,32 @@ class NodeInterface {
   def interfacesDown(arr: Array[String]) {
     if (arr.length != 2) {
       println(UsageCommand)
-    } else if (arr(1).forall(_.isDigit)) {
-      val num = arr(1).toInt
+    } else if (arr(1).trim.forall(_.isDigit)) {
+      val num = arr(1).trim.toInt
 
       if (num < linkInterfaceArray.length) {
         linkInterfaceArray(num).bringDown
       } else {
-        println("No such interface")
+        println("No such interface: " + num)
       }
     } else {
-      println("input should be number")
+      println("input should be number: " + arr(1).trim)
     }
   }
 
   def interfacesUp(arr: Array[String]) {
     if (arr.length != 2) {
       println(UsageCommand)
-    } else if (arr(1).forall(_.isDigit)) {
-      val num = arr(1).toInt
+    } else if (arr(1).trim.forall(_.isDigit)) {
+      val num = arr(1).trim.toInt
 
       if (num < linkInterfaceArray.length) {
         linkInterfaceArray(num).bringUp
       } else {
-        println("No such interface")
+        println("No such interface: " + num)
       }
     } else {
-      println("input should be number")
+      println("input should be number: " + arr(1).trim)
     }
   }
 }
