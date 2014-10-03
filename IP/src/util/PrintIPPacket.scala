@@ -67,12 +67,11 @@ object PrintIPPacket {
   }
 
   def printRIPAsString(rip: RIP) {
-    println("Address family identifier:\t" + rip.afId)
-    println("Route tag:\t" + rip.tag)
-    println("IP address:\t" + rip.IPAddr.getHostAddress)
-    println("Subnet mask:\t" + ((rip.mask >> 24) & 0xff) + "." + ((rip.mask >> 16) & 0xff)
-      + "." + ((rip.mask >> 8) & 0xff) + "." + (rip.mask & 0xff))
-    println("Next hop:\t" + rip.nextHop.getHostAddress)
-    println("Metric\t" + rip.metric)
+    println("Command:\t" + rip.command)
+    println("Number of entries:\t" + rip.numEntries)
+    println("\tNum\tCost\tAddress")
+    for (i <- Range(0, rip.numEntries)) {
+      println("\t" + i + "\t" + rip.entries(i)._1 + "\t" + rip.entries(i)._2.getAddress)
+    }
   }
 }

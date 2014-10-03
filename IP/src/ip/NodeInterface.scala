@@ -127,6 +127,11 @@ class NodeInterface {
       // convert to IPHead
       pkt.head = ConvertObject.byteToHead(headTotalBuf)
 
+      if (((pkt.head.versionAndIhl >> 4) & 0xf).asInstanceOf[Byte] != 4) {
+        println("We can only receive packet of IPv4")
+        return
+      }
+
       // payload
       pkt.payLoad = maxBuf.slice(len, pkt.head.totlen)
 
@@ -155,10 +160,10 @@ class NodeInterface {
       println(UsageCommand)
     } else {
       val dstVirtIp = arr(1)
-      // Check whether vip is in the routing table
+      // Check whether rip is in the routing table
       // lock
       routingTableLock.readLock.lock
-
+      // TODO: static constant MTU
       var flag = false
       try {
         flag = routingTable.contains(InetAddress.getByName(dstVirtIp))

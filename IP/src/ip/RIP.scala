@@ -3,10 +3,7 @@ package ip
 import java.net.InetAddress
 
 class RIP {
-	var afId: Int = _ // (Short) address family identifier
-	var tag: Int = _ // (Short) route tag
-	var IPAddr: InetAddress = _ // IP address
-	var mask: Long = _ // (Int) subnet mask
-	var nextHop: InetAddress = _ // next hop
-	var metric: Long = _ // (Int) metric
+	var command: Int = _ // (Short) command: 1 - request, 2 - response
+	var numEntries: Int = _ // (Short) number of entries
+	var entries: Array[(Int, InetAddress)] = _ // cost and address
 }

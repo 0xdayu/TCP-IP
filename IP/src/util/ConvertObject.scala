@@ -34,7 +34,7 @@ object ConvertObject {
 
     toByteAddr(buf, 12, head.saddr)
     toByteAddr(buf, 16, head.daddr)
-    
+
     buf
   }
 
@@ -69,25 +69,21 @@ object ConvertObject {
     val buf = Array.ofDim[Byte](RIPLen)
 
     // Big-Endian
-    buf(0) = ((rip.afId >> 8) & 0xff).asInstanceOf[Byte]
-    buf(1) = (rip.afId & 0xff).asInstanceOf[Byte]
+    buf(0) = ((rip.command >> 8) & 0xff).asInstanceOf[Byte]
+    buf(1) = (rip.command & 0xff).asInstanceOf[Byte]
 
-    buf(2) = ((rip.tag >> 8) & 0xff).asInstanceOf[Byte]
-    buf(3) = (rip.tag & 0xff).asInstanceOf[Byte]
+    buf(2) = ((rip.numEntries >> 8) & 0xff).asInstanceOf[Byte]
+    buf(3) = (rip.numEntries & 0xff).asInstanceOf[Byte]
 
-    toByteAddr(buf, 4, rip.IPAddr)
-
-    buf(8) = ((rip.mask >> 24) & 0xff).asInstanceOf[Byte]
-    buf(9) = ((rip.mask >> 16) & 0xff).asInstanceOf[Byte]
-    buf(10) = ((rip.mask >> 8) & 0xff).asInstanceOf[Byte]
-    buf(11) = (rip.mask & 0xff).asInstanceOf[Byte]
-
-    toByteAddr(buf, 12, rip.nextHop)
-
-    buf(16) = ((rip.metric >> 24) & 0xff).asInstanceOf[Byte]
-    buf(17) = ((rip.metric >> 16) & 0xff).asInstanceOf[Byte]
-    buf(18) = ((rip.metric >> 8) & 0xff).asInstanceOf[Byte]
-    buf(19) = (rip.metric & 0xff).asInstanceOf[Byte]
+    var i = 4
+    for (entry <- rip.entries) {
+      buf(i) = ((entry._1 >> 24) & 0xff).asInstanceOf[Byte]
+      buf(i + 1) = ((entry._1 >> 16) & 0xff).asInstanceOf[Byte]
+      buf(i + 2) = ((entry._1 >> 8) & 0xff).asInstanceOf[Byte]
+      buf(i + 3) = (entry._1 & 0xff).asInstanceOf[Byte]
+      toByteAddr(buf, i + 4, entry._2)
+      i += 8
+    }
 
     buf
   }
@@ -96,19 +92,21 @@ object ConvertObject {
     val rip = new RIP
 
     // Big-Endian
-    rip.afId = (((buf(0) << 8) | buf(1)) & 0xffff).asInstanceOf[Int]
-    rip.tag = (((buf(2) << 8) | buf(3)) & 0xffff).asInstanceOf[Int]
+    rip.command = (((buf(0) << 8) | buf(1)) & 0xffff).asInstanceOf[Int]
+    rip.numEntries = (((buf(2) << 8) | buf(3)) & 0xffff).asInstanceOf[Int]
 
-    rip.IPAddr = toInetAddr(buf, 4)
-    val part1 = (((buf(8) << 24) | (buf(9) << 16)) & 0xffff).asInstanceOf[Long]
-    val part2 = (((buf(10) << 8) | buf(11)) & 0xffff).asInstanceOf[Long]
-    rip.mask = part1 | part2
+    val array = Array.ofDim[(Int, InetAddress)](rip.numEntries)
+    var i = 0
 
-    rip.nextHop = toInetAddr(buf, 12)
+    for (count <- Range(4, 4 + rip.numEntries, 8)) {
+      val part1 = ((buf(count) << 24) | (buf(count + 1) << 16)).asInstanceOf[Int]
+      val part2 = ((buf(count + 2) << 8) | buf(count + 3)).asInstanceOf[Int]
 
-    val part3 = (((buf(16) << 24) | (buf(17) << 16)) & 0xffff).asInstanceOf[Long]
-    val part4 = (((buf(18) << 8) | buf(19)) & 0xffff).asInstanceOf[Long]
-    rip.metric = part3 | part4
+      array(i) = (part1 | part2, toInetAddr(buf, count + 4))
+      i += 1
+    }
+
+    rip.entries = array
 
     rip
   }
