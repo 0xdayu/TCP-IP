@@ -8,7 +8,7 @@ import java.net.InetAddress
  * Interface as a linker layer
  */
 class LinkInterface(_link: Link, _id: Int, nodeInterface: NodeInterface) {
-  private var upOrDown: Boolean = true // up is true, down is false
+  private var upOrDown: Boolean = false // initial state is false, if the router fires up, it will turn each interface on.
   private val MaxBufferSize = 1024 * 1024 // 1MB
   val inBuffer = new FIFOBuffer(MaxBufferSize)
   val outBuffer = new FIFOBuffer(MaxBufferSize)
@@ -31,12 +31,9 @@ class LinkInterface(_link: Link, _id: Int, nodeInterface: NodeInterface) {
         upOrDown = false
 
         // clean inBuffer/outBuffer
-        while (!inBuffer.isEmpty) {
-          inBuffer.bufferRead
-        }
-        while (!outBuffer.isEmpty) {
-          outBuffer.bufferRead
-        }
+        inBuffer.bufferClean
+        
+        outBuffer.bufferClean
 
         println("interface " + id + " down")
       } else {

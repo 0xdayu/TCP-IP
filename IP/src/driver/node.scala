@@ -41,9 +41,6 @@ object node {
     receThread.start
     sendThread.start
 
-    // rip request
-    nodeInterface.ripRequest(null)
-
     println("Node all set [\"[q]uit\" to exit]")
 
     while (true) {

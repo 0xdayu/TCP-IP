@@ -40,4 +40,11 @@ class FIFOBuffer(capacity: Int) {
       }
     }
   }
+  
+  def bufferClean() {
+    this.synchronized{
+      buffer.clear
+      size = 0
+    }
+  }
 }

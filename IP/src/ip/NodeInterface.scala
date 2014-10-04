@@ -58,8 +58,10 @@ class NodeInterface {
       physAddrToInterface.put(new InetSocketAddress(interface.link.remotePhysHost, interface.link.remotePhysPort), interface)
       virtAddrToInterface.put(interface.link.remoteVirtIP, interface)
 
-      // initial routing table
-      routingTable.put(interface.getRemoteIP, (1, interface.getRemoteIP))
+      // When only this node is up, the routing table should be empty.
+      
+      // Fire up all interfaces: including RIP request
+      interface.bringUp
 
       id += 1
     }
@@ -201,23 +203,12 @@ class NodeInterface {
   }
 
   def ripRequest(virtIP: InetAddress) {
-    if (virtIP == null) {
-      for (interface <- linkInterfaceArray) {
-        val rip = new RIP
-        rip.command = RIPRequest
-        rip.numEntries = 0
-        rip.entries = Array.empty
-        val userData = ConvertObject.RIPToByte(rip)
-        generateIPPacket(interface.getRemoteIP, Rip, userData, false)
-      }
-    } else {
-      val rip = new RIP
-      rip.command = RIPRequest
-      rip.numEntries = 0
-      rip.entries = Array.empty
-      val userData = ConvertObject.RIPToByte(rip)
-      generateIPPacket(virtIP, Rip, userData, false)
-    }
+    val rip = new RIP
+    rip.command = RIPRequest
+    rip.numEntries = 0
+    rip.entries = Array.empty
+    val userData = ConvertObject.RIPToByte(rip)
+    generateIPPacket(virtIP, Rip, userData, false)
   }
 
   def ripResponse(virtIP: InetAddress, rip: RIP) {
