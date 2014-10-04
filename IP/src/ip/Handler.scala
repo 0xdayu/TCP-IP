@@ -3,6 +3,7 @@ package ip
 import util.{ PrintIPPacket, ConvertObject }
 import java.net.InetAddress
 import scala.collection.mutable.ArrayBuffer
+import scala.util.control.Breaks._
 
 object Handler {
   def forwardHandler(packet: IPPacket, nodeInterface: NodeInterface) {
@@ -126,50 +127,60 @@ object Handler {
 
       // deal with the total entries
       for (entry <- rip.entries) {
-        // the max value is RIP inifinity
-        var newCost = math.min(entry._1 + 1, nodeInterface.RIPInifinity)
+        breakable {
+          // ignore the destination address is one interface of this router
+          for (interface <- nodeInterface.linkInterfaceArray) {
+            if (interface.getLocalIP == entry._2) {
+              break
+            }
+          }
+          // the max value is RIP inifinity
+          var newCost = math.min(entry._1 + 1, nodeInterface.RIPInifinity)
 
-        val pair = nodeInterface.routingTable.get(entry._2)
-        pair match {
-          case Some((cost, nextHop)) => {
-            if (nextHop == packet.head.saddr) {
-              // the same next hop and we need to update no matter whether it is larger or smaller
-              if (newCost != cost) {
-                nodeInterface.routingTable.put(entry._2, (newCost, nextHop))
+          val pair = nodeInterface.routingTable.get(entry._2)
+          pair match {
+            case Some((cost, nextHop)) => {
+              if (nextHop == packet.head.saddr) {
+                // the same next hop and we need to update no matter whether it is larger or smaller
+                if (newCost != cost) {
+                  nodeInterface.routingTable.put(entry._2, (newCost, nextHop))
+                  array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
+                }
+              } else if (cost > newCost) {
+                // update
+                nodeInterface.routingTable.put(entry._2, (newCost, packet.head.saddr))
                 array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
-              }
-            } else if (cost > newCost) {
-              // update
+              } // else nothing
+            }
+            case None => {
+              // same
               nodeInterface.routingTable.put(entry._2, (newCost, packet.head.saddr))
               array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
-            } // else nothing
-          }
-          case None => {
-            // same
-            nodeInterface.routingTable.put(entry._2, (newCost, packet.head.saddr))
-            array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
+            }
           }
         }
       }
       nodeInterface.routingTableLock.writeLock.unlock
 
-      // now, after updating the routing table, we can start to send
-      updateRIP.numEntries = array.length
-      updateRIP.entries = array.toArray
+      if (array.length != 0) {
+        // now, after updating the routing table, we can start to send
+        updateRIP.numEntries = array.length
+        updateRIP.entries = array.toArray
 
-      for (interface <- nodeInterface.linkInterfaceArray) {
-        if (interface.getRemoteIP != packet.head.saddr) {
-          nodeInterface.ripResponse(interface.getRemoteIP, updateRIP)
+        for (interface <- nodeInterface.linkInterfaceArray) {
+          if (interface.getRemoteIP != packet.head.saddr) {
+            nodeInterface.ripResponse(interface.getRemoteIP, updateRIP)
+          }
         }
-      }
 
-      var inifinityArray = new ArrayBuffer[(Int, InetAddress)]
-      for (entry <- array) {
-        inifinityArray += (nodeInterface.RIPInifinity, entry._2).asInstanceOf[(Int, InetAddress)]
-      }
+        var inifinityArray = new ArrayBuffer[(Int, InetAddress)]
+        for (entry <- array) {
+          inifinityArray += (nodeInterface.RIPInifinity, entry._2).asInstanceOf[(Int, InetAddress)]
+        }
 
-      updateRIP.entries = inifinityArray.toArray
-      nodeInterface.ripResponse(packet.head.saddr, updateRIP)
+        updateRIP.entries = inifinityArray.toArray
+        nodeInterface.ripResponse(packet.head.saddr, updateRIP)
+      }
     }
   }
 }

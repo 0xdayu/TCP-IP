@@ -59,7 +59,7 @@ class NodeInterface {
       virtAddrToInterface.put(interface.link.remoteVirtIP, interface)
 
       // When only this node is up, the routing table should be empty.
-      
+
       // Fire up all interfaces: including RIP request
       interface.bringUp
 
@@ -86,8 +86,13 @@ class NodeInterface {
         headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
 
         // XXXXXXXX Test
-        PrintIPPacket.printIPPacket(pkt, false, false, false)
-        PrintIPPacket.printIPPacket(pkt, true, true, false)
+        if (pkt.head.protocol == Data) {
+          PrintIPPacket.printIPPacket(pkt, false, false, false)
+          PrintIPPacket.printIPPacket(pkt, true, true, false)
+        } else {
+          PrintIPPacket.printIPPacket(pkt, false, false, true)
+          PrintIPPacket.printIPPacket(pkt, true, true, true)
+        }
 
         if (headBuf != null) {
           // TODO: static constant MTU
@@ -305,19 +310,23 @@ class NodeInterface {
     if (arr.length != 1) {
       println(UsageCommand)
     } else {
-      println("Routing table:")
+      println("Routing table: ")
       // lock
       routingTableLock.readLock.lock
-      for (entry <- routingTable) {
-        var throughAddr: String = ""
-        if (entry._1.getHostAddress() == entry._2._2.getHostAddress()) {
-          throughAddr = "self"
-        } else {
-          throughAddr = entry._2._2.getHostAddress()
-        }
+      if (routingTable.size == 0) {
+        println("Empty")
+      } else {
+        for (entry <- routingTable) {
+          var throughAddr: String = ""
+          if (entry._1.getHostAddress() == entry._2._2.getHostAddress()) {
+            throughAddr = "self"
+          } else {
+            throughAddr = entry._2._2.getHostAddress()
+          }
 
-        println("Route to " + entry._1.getHostAddress() + " with cost " + entry._2._1 +
-          ", through " + throughAddr)
+          println("Route to " + entry._1.getHostAddress() + " with cost " + entry._2._1 +
+            ", through " + throughAddr)
+        }
       }
       routingTableLock.readLock.unlock
     }

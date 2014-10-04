@@ -4,7 +4,6 @@ import ip.{ IPHead, RIP }
 import java.net.InetAddress
 
 object ConvertObject {
-  val RIPLen = 20
 
   // helper function
   def headToByte(head: IPHead): Array[Byte] = {
@@ -66,7 +65,7 @@ object ConvertObject {
   }
 
   def RIPToByte(rip: RIP): Array[Byte] = {
-    val buf = Array.ofDim[Byte](RIPLen)
+    val buf = Array.ofDim[Byte](4 + rip.numEntries * 8)
 
     // Big-Endian
     buf(0) = ((rip.command >> 8) & 0xff).asInstanceOf[Byte]

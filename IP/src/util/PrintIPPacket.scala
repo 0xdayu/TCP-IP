@@ -71,11 +71,13 @@ object PrintIPPacket {
   }
 
   def printRIPAsString(rip: RIP) {
-    println("Command:\t" + rip.command)
+    println("Command:\t\t" + rip.command)
     println("Number of entries:\t" + rip.numEntries)
-    println("\tNum\tCost\tAddress")
-    for (i <- Range(0, rip.numEntries)) {
-      println("\t" + i + "\t" + rip.entries(i)._1 + "\t" + rip.entries(i)._2.getAddress)
+    if (rip.numEntries != 0) {
+      println("\tNum\tCost\tAddress")
+      for (i <- Range(0, rip.numEntries)) {
+        println("\t" + i + "\t" + rip.entries(i)._1 + "\t" + rip.entries(i)._2.getHostAddress)
+      }
     }
   }
 }
