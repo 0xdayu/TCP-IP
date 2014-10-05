@@ -88,10 +88,10 @@ class NodeInterface {
         // XXXXXXXX Test
         if (pkt.head.protocol == Data) {
           PrintIPPacket.printIPPacket(pkt, false, false, false)
-          PrintIPPacket.printIPPacket(pkt, true, true, false)
+          // PrintIPPacket.printIPPacket(pkt, true, true, false)
         } else {
           PrintIPPacket.printIPPacket(pkt, false, false, true)
-          PrintIPPacket.printIPPacket(pkt, true, true, true)
+          // PrintIPPacket.printIPPacket(pkt, true, true, true)
         }
 
         if (headBuf != null) {
@@ -196,7 +196,7 @@ class NodeInterface {
           if (userData.length > DefaultMTU - DefaultHeadLength) {
             println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + userData.length + DefaultHeadLength)
           } else {
-            generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData, false)
+            generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData, true)
           }
         } else {
           println("Unsupport Protocol: " + proto)
@@ -252,8 +252,8 @@ class NodeInterface {
       val option = routingTable.get(virtIP)
       routingTableLock.readLock.unlock
       option match {
-        case Some((cost, nextAddr)) => {
-          val virtSrcIP = virtAddrToInterface.get(nextAddr)
+        case Some((cost, nextHop)) => {
+          val virtSrcIP = virtAddrToInterface.get(nextHop)
           virtSrcIP match {
             case Some(interface) => {
               head.saddr = interface.link.localVirtIP
@@ -268,7 +268,7 @@ class NodeInterface {
                 println("interface " + interface.id + "down: " + "no way to send out")
               }
             }
-            case None => println("Fail to get source virtual IP address!")
+            case None => println("Fail to get next hop IP address: " + nextHop.getHostAddress)
           }
         }
         case None => println("Destination Unreachable!")

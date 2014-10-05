@@ -97,7 +97,7 @@ object ConvertObject {
     val array = Array.ofDim[(Int, InetAddress)](rip.numEntries)
     var i = 0
 
-    for (count <- Range(4, 4 + rip.numEntries, 8)) {
+    for (count <- Range(4, 4 + rip.numEntries * 8, 8)) {
       val part1 = ((buf(count) << 24) | (buf(count + 1) << 16)).asInstanceOf[Int]
       val part2 = ((buf(count + 2) << 8) | buf(count + 3)).asInstanceOf[Int]
 

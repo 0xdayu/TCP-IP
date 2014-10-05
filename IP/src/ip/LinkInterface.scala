@@ -32,7 +32,7 @@ class LinkInterface(_link: Link, _id: Int, nodeInterface: NodeInterface) {
 
         // clean inBuffer/outBuffer
         inBuffer.bufferClean
-        
+
         outBuffer.bufferClean
 
         println("interface " + id + " down")
@@ -45,6 +45,11 @@ class LinkInterface(_link: Link, _id: Int, nodeInterface: NodeInterface) {
   def bringUp {
     this.synchronized {
       if (!upOrDown) {
+        // clean inBuffer/outBuffer
+        inBuffer.bufferClean
+
+        outBuffer.bufferClean
+
         upOrDown = true
         // up and need to request 
         nodeInterface.ripRequest(getRemoteIP)

@@ -100,6 +100,7 @@ object Handler {
       responseRIP.command = nodeInterface.RIPResponse
       responseRIP.numEntries = nodeInterface.routingTable.size
       responseRIP.entries = new Array[(Int, InetAddress)](nodeInterface.routingTable.size)
+
       var i = 0
       for (entry <- nodeInterface.routingTable) {
         if (entry._2._2 == packet.head.saddr) {
