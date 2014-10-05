@@ -2,6 +2,7 @@ package ip
 
 import java.util.TimerTask
 import java.net.InetAddress
+import scala.collection.mutable.ArrayBuffer
 
 class PeriodicUpdate(nodeInterface: NodeInterface) extends TimerTask {
   def run() {
@@ -10,18 +11,25 @@ class PeriodicUpdate(nodeInterface: NodeInterface) extends TimerTask {
       // response all the tables to request address
       val responseRIP = new RIP
       responseRIP.command = nodeInterface.RIPResponse
-      responseRIP.numEntries = nodeInterface.routingTable.size
-      responseRIP.entries = new Array[(Int, InetAddress)](nodeInterface.routingTable.size)
+      
+      val tempEntryArray = new ArrayBuffer[(Int, InetAddress)]
 
-      var i = 0
       for (entry <- nodeInterface.routingTable) {
         if (entry._2._2 == interface.getRemoteIP) {
-          responseRIP.entries(i) = (nodeInterface.RIPInifinity, entry._1) // cost, destination, poison reverse
+          tempEntryArray += (nodeInterface.RIPInifinity, entry._1).asInstanceOf[(Int, InetAddress)] // cost, destination, poison reverse
         } else {
-          responseRIP.entries(i) = (entry._2._1, entry._1) // cost, destination
+          tempEntryArray += (entry._2._1, entry._1).asInstanceOf[(Int, InetAddress)] // cost, destination
         }
-        i += 1
       }
+      
+      // Announce all up link interfaces
+      for (_interface <- nodeInterface.linkInterfaceArray){
+        if (_interface.isUpOrDown && _interface.getLocalIP != interface.getLocalIP){
+        	tempEntryArray += (0, _interface.getLocalIP).asInstanceOf[(Int, InetAddress)] // cost, destination	
+        }
+      }
+      responseRIP.numEntries = tempEntryArray.length
+      responseRIP.entries = tempEntryArray.toArray
 
       nodeInterface.ripResponse(interface.getRemoteIP, responseRIP)
     }

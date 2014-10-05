@@ -5,31 +5,31 @@ import java.text.DecimalFormat
 
 object PrintIPPacket {
   def printIPPacket(packet: IPPacket, isHeadBinary: Boolean, isPayloadBinary: Boolean, isRIP: Boolean) {
-    println("========================IP Head==========================")
-
-    if (isHeadBinary) {
-      printIPHeadAsBinary(packet.head)
-    } else {
-      printIPHeadAsString(packet.head)
-    }
-
-    println("========================IP Payload=======================")
-
-    if (isPayloadBinary) {
-      printBinary(packet.payLoad)
-    } else {
-      if (isRIP) {
-        printRIPAsString(ConvertObject.byteToRIP(packet.payLoad))
-      } else {
-        if (packet.payLoad.isEmpty) {
-          println("Nothing in payload")
-        } else {
-          println(new String(packet.payLoad.map(_.toChar)))
-        }
-      }
-    }
-
-    println("=========================================================")
+//    println("========================IP Head==========================")
+//
+//    if (isHeadBinary) {
+//      printIPHeadAsBinary(packet.head)
+//    } else {
+//      printIPHeadAsString(packet.head)
+//    }
+//
+//    println("========================IP Payload=======================")
+//
+//    if (isPayloadBinary) {
+//      printBinary(packet.payLoad)
+//    } else {
+//      if (isRIP) {
+//        printRIPAsString(ConvertObject.byteToRIP(packet.payLoad))
+//      } else {
+//        if (packet.payLoad.isEmpty) {
+//          println("Nothing in payload")
+//        } else {
+//          println(new String(packet.payLoad.map(_.toChar)))
+//        }
+//      }
+//    }
+//
+//    println("=========================================================")
   }
 
   def printIPHeadAsBinary(head: IPHead) {
