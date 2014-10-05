@@ -44,12 +44,12 @@ class Expire(nodeInterface: NodeInterface) extends TimerTask {
       if (nodeInterface.entryExpire.isEmpty) {
         nodeInterface.expire.schedule(new Expire(nodeInterface), nodeInterface.TimeExpire)
       } else {
-        nodeInterface.expire.schedule(new Expire(nodeInterface), nodeInterface.entryExpire.head._2 - sysTime)
+        nodeInterface.expire.schedule(new Expire(nodeInterface), math.max(nodeInterface.entryExpire.head._2 - sysTime, 0))
       }
       nodeInterface.entryExpireLock.readLock.unlock
 
     } else {
-      nodeInterface.expire.schedule(new Expire(nodeInterface), exp - sysTime)
+      nodeInterface.expire.schedule(new Expire(nodeInterface), math.max(exp - sysTime, 0))
     }
   }
 }

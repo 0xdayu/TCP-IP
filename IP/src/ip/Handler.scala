@@ -79,6 +79,14 @@ object Handler {
       if (!nodeInterface.routingTable.contains(packet.head.saddr)) {
         nodeInterface.routingTable.put(packet.head.saddr, (1, packet.head.saddr))
         routingTableIsUpdated = true
+      } else {
+        // if contains, we should check whether the next hop is 1
+        // no possible to get null
+        val (cost, nextHop) = nodeInterface.routingTable.get(packet.head.saddr).getOrElse(null)
+        if (nextHop != packet.head.saddr) {
+          nodeInterface.routingTable.put(packet.head.saddr, (1, packet.head.saddr))
+          routingTableIsUpdated = true
+        }
       }
       nodeInterface.routingTableLock.writeLock.unlock
 
@@ -136,6 +144,14 @@ object Handler {
       if (!nodeInterface.routingTable.contains(packet.head.saddr)) {
         nodeInterface.routingTable.put(packet.head.saddr, (1, packet.head.saddr))
         array += (1, packet.head.saddr).asInstanceOf[(Int, InetAddress)]
+      } else {
+        // if contains, we should check whether the next hop is 1
+        // no possible to get null
+        val (cost, nextHop) = nodeInterface.routingTable.get(packet.head.saddr).getOrElse(null)
+        if (nextHop != packet.head.saddr) {
+          nodeInterface.routingTable.put(packet.head.saddr, (1, packet.head.saddr))
+          array += (1, packet.head.saddr).asInstanceOf[(Int, InetAddress)]
+        }
       }
 
       // update the time for that entry
@@ -150,7 +166,8 @@ object Handler {
       // deal with the total entries
       for (entry <- rip.entries) {
         breakable {
-          // ignore the destination address is one interface of this router
+          // TODO
+          // ignore the destination address is that interface of this router receiving that packet
           for (interface <- nodeInterface.linkInterfaceArray) {
             if (interface.getLocalIP == entry._2) {
               break

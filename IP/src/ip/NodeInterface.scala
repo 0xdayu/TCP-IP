@@ -199,6 +199,32 @@ class NodeInterface {
           println("Invalid IP address")
           return
       }
+
+      if (!flag) {
+        for (interface <- linkInterfaceArray) {
+          if (interface.getLocalIP == InetAddress.getByName(dstVirtIp)) {
+            // local print
+            if (interface.isUpOrDown) {
+              if (arr(2).forall(_.isDigit)) {
+                val proto = arr(2).toInt
+                if (proto == Data) {
+                  val len = line.indexOf(arr(2), line.indexOf(arr(1)) + arr(1).length) + 1 + arr(2).length
+                  println("Local printing: " + line.slice(len, line.length))
+                } else {
+                  println("Unsupport Protocol: " + proto)
+                }
+              } else {
+                println(UsageCommand)
+              }
+            } else {
+              println("interface " + interface.id + "down: " + "no way to send out")
+            }
+
+            return
+          }
+        }
+      }
+
       routingTableLock.readLock.unlock
       if (!flag) {
         println("Destination Unreachable!")
