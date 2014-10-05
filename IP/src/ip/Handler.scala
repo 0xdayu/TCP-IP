@@ -28,13 +28,17 @@ object Handler {
         interface match {
           case Some(_interface) => {
             if (_interface.isUpOrDown) {
-              // Decrease TTL by one
-              packet.head.ttl = (packet.head.ttl - 1).asInstanceOf[Short]
-              // drop if ttl == 0
-              if (packet.head.ttl != 0) {
-                _interface.outBuffer.bufferWrite(packet)
+              if (cost != nodeInterface.RIPInifinity) {
+                // Decrease TTL by one
+                packet.head.ttl = (packet.head.ttl - 1).asInstanceOf[Short]
+                // drop if ttl == 0
+                if (packet.head.ttl != 0) {
+                  _interface.outBuffer.bufferWrite(packet)
+                } else {
+                  println("ttl == 0, we need to drop this packet")
+                }
               } else {
-                println("ttl == 0, we need to drop this packet")
+                println("The packet cannot go to inifinity address!")
               }
             }
           }
@@ -50,7 +54,6 @@ object Handler {
   }
 
   def ripHandler(packet: IPPacket, nodeInterface: NodeInterface) {
-    // TODO: 
     // All response have added poison reverse
     // 1.Response request: response all routing table
     // 2.Period updates (5 sec): response all routing table
@@ -78,6 +81,15 @@ object Handler {
         routingTableIsUpdated = true
       }
       nodeInterface.routingTableLock.writeLock.unlock
+
+      // update the time for that entry
+      nodeInterface.entryExpireLock.writeLock.lock
+      if (nodeInterface.entryExpire.contains(packet.head.saddr)) {
+        // remove the old entry time
+        nodeInterface.entryExpire.remove(packet.head.saddr)
+      }
+      nodeInterface.entryExpire.put(packet.head.saddr, System.currentTimeMillis + nodeInterface.TimeExpire)
+      nodeInterface.entryExpireLock.writeLock.unlock
 
       nodeInterface.routingTableLock.readLock.lock
       // modify and tell other interfaces
@@ -126,6 +138,15 @@ object Handler {
         array += (1, packet.head.saddr).asInstanceOf[(Int, InetAddress)]
       }
 
+      // update the time for that entry
+      nodeInterface.entryExpireLock.writeLock.lock
+      if (nodeInterface.entryExpire.contains(packet.head.saddr)) {
+        // remove the old entry time
+        nodeInterface.entryExpire.remove(packet.head.saddr)
+      }
+      nodeInterface.entryExpire.put(packet.head.saddr, System.currentTimeMillis + nodeInterface.TimeExpire)
+      nodeInterface.entryExpireLock.writeLock.unlock
+
       // deal with the total entries
       for (entry <- rip.entries) {
         breakable {
@@ -138,27 +159,75 @@ object Handler {
           // the max value is RIP inifinity
           var newCost = math.min(entry._1 + 1, nodeInterface.RIPInifinity)
 
+          var isUpdated = false
+
           val pair = nodeInterface.routingTable.get(entry._2)
           pair match {
             case Some((cost, nextHop)) => {
               if (nextHop == packet.head.saddr) {
-                // the same next hop and we need to update no matter whether it is larger or smaller
-                if (newCost != cost) {
+                if (newCost == nodeInterface.RIPInifinity) {
+                  // delete that entry "now"
+                  // 1. delete that expire time
+                  // 2. delete from routing table
+                  // 3. tell all the interfaces
+                  nodeInterface.entryExpireLock.writeLock.lock
+                  if (nodeInterface.entryExpire.contains(entry._2)) {
+                    // remove the old entry time
+                    nodeInterface.entryExpire.remove(entry._2)
+                  }
+                  nodeInterface.entryExpireLock.writeLock.unlock
+
+                  nodeInterface.routingTable.remove(entry._2)
+
+                  // tell all the interfaces with inifinity entry
+                  val deleteRIP = new RIP
+                  deleteRIP.command = nodeInterface.RIPResponse
+                  deleteRIP.numEntries = 1
+                  deleteRIP.entries = new Array[(Int, InetAddress)](1)
+                  deleteRIP.entries(0) = (nodeInterface.RIPInifinity, entry._2)
+
+                  for (interface <- nodeInterface.linkInterfaceArray) {
+                    nodeInterface.ripResponse(interface.getRemoteIP, deleteRIP)
+                  }
+
+                } else if (newCost != cost) {
+                  // the same next hop and we need to update no matter whether it is larger or smaller
                   nodeInterface.routingTable.put(entry._2, (newCost, nextHop))
                   array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
+                  isUpdated = true
+                } else if (newCost == cost) {
+                  // same the cost and same nextHop, we only update the time
+                  isUpdated = true
                 }
               } else if (cost > newCost) {
-                // update
+                // update (override the original cost)
                 nodeInterface.routingTable.put(entry._2, (newCost, packet.head.saddr))
                 array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
-              } // else nothing
+                isUpdated = true
+              } // else is no update
+              // TODO: cost == newCost, does it need to update?
             }
             case None => {
               // same
-              nodeInterface.routingTable.put(entry._2, (newCost, packet.head.saddr))
-              array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
+              if (newCost != nodeInterface.RIPInifinity) {
+                nodeInterface.routingTable.put(entry._2, (newCost, packet.head.saddr))
+                array += (newCost, entry._2).asInstanceOf[(Int, InetAddress)]
+                isUpdated = true
+              }
             }
           }
+
+          // update the time for that entry
+          if (isUpdated) {
+            nodeInterface.entryExpireLock.writeLock.lock
+            if (nodeInterface.entryExpire.contains(entry._2)) {
+              // remove the old entry time
+              nodeInterface.entryExpire.remove(entry._2)
+            }
+            nodeInterface.entryExpire.put(entry._2, System.currentTimeMillis + nodeInterface.TimeExpire)
+            nodeInterface.entryExpireLock.writeLock.unlock
+          }
+
         }
       }
       nodeInterface.routingTableLock.writeLock.unlock

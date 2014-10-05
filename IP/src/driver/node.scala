@@ -60,6 +60,8 @@ object node {
           case "s" | "send" => nodeInterface.generateAndSendPacket(arr, line)
           case "q" | "quit" =>
             {
+              nodeInterface.expire.cancel
+              nodeInterface.periodicUpdate.cancel
               nodeInterface.socket.close
               rece.cancel
               hm.cancel

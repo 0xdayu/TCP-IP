@@ -3,8 +3,9 @@ package ip
 import util._
 import java.net.{ DatagramSocket, InetAddress, DatagramPacket, InetSocketAddress }
 import java.io.IOException
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{ HashMap, LinkedHashMap }
 import scala.actors.threadpool.locks.{ ReentrantLock, ReentrantReadWriteLock }
+import java.util.Timer
 
 class NodeInterface {
   val Rip = 200
@@ -26,6 +27,16 @@ class NodeInterface {
   var linkInterfaceArray: Array[LinkInterface] = _
   // dst addr, cost, next addr
   val routingTable = new HashMap[InetAddress, (Int, InetAddress)]
+
+  // 5 seconds
+  val TimePeriodic = 5000
+  val periodicUpdate = new Timer
+
+  // 12 seconds
+  val TimeExpire = 12000
+  val entryExpire = new LinkedHashMap[InetAddress, Long]
+  val expire = new Timer
+  val entryExpireLock = new ReentrantReadWriteLock
 
   val UsageCommand = "We only accept: [h]elp, [i]nterfaces, [r]outes," +
     "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
@@ -65,6 +76,12 @@ class NodeInterface {
 
       id += 1
     }
+
+    // timeout of each 5 seconds, we start after 5 seconds (first time)
+    periodicUpdate.schedule(new PeriodicUpdate(this), TimePeriodic, TimePeriodic)
+
+    // timeout of each 12 seconds, we start after 5 seconds (first time)
+    expire.schedule(new Expire(this), TimeExpire)
   }
 
   def sendPacket(interface: LinkInterface) {
@@ -263,7 +280,11 @@ class NodeInterface {
               pkt.head = head
 
               if (interface.isUpOrDown) {
-                interface.outBuffer.bufferWrite(pkt)
+                if (cost != RIPInifinity) {
+                  interface.outBuffer.bufferWrite(pkt)
+                } else {
+                  println("The packet cannot go to inifinity address!")
+                }
               } else {
                 println("interface " + interface.id + "down: " + "no way to send out")
               }
