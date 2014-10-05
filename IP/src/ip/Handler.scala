@@ -100,6 +100,7 @@ object Handler {
       nodeInterface.entryExpireLock.writeLock.unlock
 
       nodeInterface.routingTableLock.readLock.lock
+
       // modify and tell other interfaces
       if (routingTableIsUpdated) {
         val updateRIP = new RIP
@@ -166,8 +167,7 @@ object Handler {
       // deal with the total entries
       for (entry <- rip.entries) {
         breakable {
-          // TODO
-          // ignore the destination address is that interface of this router receiving that packet
+          // ignore the destination address is one interface of this router
           for (interface <- nodeInterface.linkInterfaceArray) {
             if (interface.getLocalIP == entry._2) {
               break
