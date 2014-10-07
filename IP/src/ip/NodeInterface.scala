@@ -361,7 +361,7 @@ class NodeInterface {
       // lock
       routingTableLock.readLock.lock
       if (routingTable.size == 0) {
-        println("Empty")
+        println("[no routes]")
       } else {
         for (entry <- routingTable) {
           var throughAddr: String = ""
