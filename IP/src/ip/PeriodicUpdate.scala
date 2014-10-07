@@ -24,7 +24,8 @@ class PeriodicUpdate(nodeInterface: NodeInterface) extends TimerTask {
       
       // Announce all up link interfaces
       for (_interface <- nodeInterface.linkInterfaceArray){
-        if (_interface.isUpOrDown && _interface.getLocalIP != interface.getLocalIP){
+        //if (_interface.isUpOrDown && _interface.getLocalIP != interface.getLocalIP){
+        if (_interface.isUpOrDown){
         	tempEntryArray += (0, _interface.getLocalIP).asInstanceOf[(Int, InetAddress)] // cost, destination	
         }
       }

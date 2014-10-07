@@ -9,9 +9,15 @@ object Handler {
   def forwardHandler(packet: IPPacket, nodeInterface: NodeInterface) {
     val dstIpAddr = packet.head.daddr
 
+    // println("TTL: "+packet.head.ttl)
     // local interfaces check
     for (interface <- nodeInterface.linkInterfaceArray) {
       if (interface.compareIP(dstIpAddr)) {
+        if (packet.payLoad.isEmpty) {
+          println("Nothing in payload")
+        } else {
+          println(new String(packet.payLoad.map(_.toChar)))
+        }
         PrintIPPacket.printIPPacket(packet, false, false, false)
         return
       }
@@ -131,7 +137,7 @@ object Handler {
       
       // Announce all up link interfaces
       for (interface <- nodeInterface.linkInterfaceArray){
-        if (interface.isUpOrDown && interface.getRemoteIP != packet.head.saddr){
+        if (interface.isUpOrDown){
         	tempEntryArray += (0, interface.getLocalIP).asInstanceOf[(Int, InetAddress)] // cost, destination	
         }
       }

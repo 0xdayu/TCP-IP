@@ -14,7 +14,7 @@ class NodeInterface {
   val DefaultHeadLength = 20
   val DefaultMTU = 1400
   val MaxPacket = 64 * 1024
-  val MaxTTL = 16
+  val MaxTTL = 15
   val RIPInifinity = 16
   val RIPRequest = 1
   val RIPResponse = 2
@@ -126,7 +126,7 @@ class NodeInterface {
         }
       }
     } else {
-      println("Send: interface " + interface.id + " down, drop the packet")
+      //println("Send: interface " + interface.id + " down, drop the packet")
     }
   }
 
@@ -169,7 +169,7 @@ class NodeInterface {
           if (interface.isUpOrDown) {
             interface.inBuffer.bufferWrite(pkt)
           } else {
-            println("Receive: interface " + interface.id + " down, drop the packet")
+            // println("Receive: interface " + interface.id + " down, drop the packet")
           }
         }
         case None => println("Receiving packet from " + remote.getHostString() + ":" + remote.getPort())
@@ -217,7 +217,7 @@ class NodeInterface {
                 println(UsageCommand)
               }
             } else {
-              println("interface " + interface.id + "down: " + "no way to send out")
+              // println("interface " + interface.id + "down: " + "no way to send out")
             }
 
             return
@@ -312,7 +312,7 @@ class NodeInterface {
                   println("The packet cannot go to inifinity address!")
                 }
               } else {
-                println("interface " + interface.id + "down: " + "no way to send out")
+                // println("interface " + interface.id + "down: " + "no way to send out")
               }
             }
             case None => println("Fail to get next hop IP address: " + nextHop.getHostAddress)
@@ -333,7 +333,7 @@ class NodeInterface {
           if (interface.isUpOrDown) {
             interface.outBuffer.bufferWrite(pkt)
           } else {
-            println("interface " + interface.id + "down: " + "no way to send out")
+            // println("interface " + interface.id + "down: " + "no way to send out")
           }
         }
         case None => println("Fail to get source virtual IP address!")
