@@ -39,7 +39,7 @@ class NodeInterface {
   val entryExpireLock = new ReentrantReadWriteLock
 
   val UsageCommand = "We only accept: [h]elp, [i]nterfaces, [r]outes," +
-    "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
+    "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [m]tu <integer0> <integer1>, [q]uit"
 
   // remote phys addr + port => interface
   var physAddrToInterface = new HashMap[InetSocketAddress, LinkInterface]
@@ -385,13 +385,13 @@ class NodeInterface {
     } else if (arr(1).trim.forall(_.isDigit)) {
       val num = arr(1).trim.toInt
 
-      if (num < linkInterfaceArray.length) {
+      if (num < linkInterfaceArray.length && num >= 0) {
         linkInterfaceArray(num).bringDown
       } else {
         println("No such interface: " + num)
       }
     } else {
-      println("input should be number: " + arr(1).trim)
+      println("[d]own: input should be number: " + arr(1).trim)
     }
   }
 
@@ -401,13 +401,30 @@ class NodeInterface {
     } else if (arr(1).trim.forall(_.isDigit)) {
       val num = arr(1).trim.toInt
 
-      if (num < linkInterfaceArray.length) {
+      if (num < linkInterfaceArray.length && num >= 0) {
         linkInterfaceArray(num).bringUp
       } else {
         println("No such interface: " + num)
       }
     } else {
-      println("input should be number: " + arr(1).trim)
+      println("[u]p: input should be number: " + arr(1).trim)
+    }
+  }
+
+  def setMTU(arr: Array[String]) {
+    if (arr.length != 3) {
+      println(UsageCommand)
+    } else if (arr(1).trim.forall(_.isDigit) && arr(2).trim.forall(_.isDigit)) {
+      val num = arr(1).trim.toInt
+      val mtu = arr(2).trim.toInt
+
+      if (num < linkInterfaceArray.length && num >= 0) {
+        //todo
+      } else {
+        println("No such interface: " + num)
+      }
+    } else {
+      println("[m]tu: input should be two numbers")
     }
   }
 }

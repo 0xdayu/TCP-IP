@@ -5,7 +5,7 @@ import util._
 
 object node {
   val UsageCommand = "We only accept: [h]elp, [i]nterfaces, [r]outes," +
-    "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [q]uit"
+    "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [m]tu <integer0> <integer1>, [q]uit"
 
   var nodeInterface: NodeInterface = _
 
@@ -58,6 +58,7 @@ object node {
           case "d" | "down" => nodeInterface.interfacesDown(arr)
           case "u" | "up" => nodeInterface.interfacesUp(arr)
           case "s" | "send" => nodeInterface.generateAndSendPacket(arr, line)
+          case "m" | "mtu" => nodeInterface.setMTU(arr)
           case "q" | "quit" =>
             {
               nodeInterface.expire.cancel
@@ -83,6 +84,7 @@ object node {
     println(" [d]own <integer>\t\tBring one interface down")
     println(" [u]p <integer>\t\t\tBring one interface up")
     println(" [s]end <vip> <proto> <string>\tSend message to virtual IP")
+    println(" [m]tu <integer0> <integer1>\tSet the MTU for link integer0 to integer1 bytes")
     println(" [q]uit\t\t\t\tQuit the node")
     println("*****************************************************************************")
   }
