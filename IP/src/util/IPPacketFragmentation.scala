@@ -1,8 +1,10 @@
 package util
 
 import ip.{ IPPacket, IPHead }
+import scala.collection.mutable.LinkedHashMap
 
 object IPPacketFragmentation {
+  val MaxPacket = 64 * 1024
 
   def fragment(packet: IPPacket, mtu: Int): Array[IPPacket] = {
     // check Don't fragment bit
@@ -57,5 +59,54 @@ object IPPacketFragmentation {
     } else {
       Array[IPPacket](packet)
     }
+  }
+
+  def reassemblePacket(fragmentHashMap: LinkedHashMap[Int, (Long, Int, Int, Array[Byte])], incomingPacket: IPPacket): IPPacket = {
+    if (fragmentHashMap.contains(incomingPacket.head.id)) {
+      var (time, size, totalSize, array) = fragmentHashMap.get(incomingPacket.head.id).getOrElse(null)
+
+      val offset = (incomingPacket.head.fragoff & (~(1 << 13))) * 8
+      val len = incomingPacket.head.totlen - (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
+      Array.copy(incomingPacket.payLoad, 0, array, offset, len)
+
+      size += len
+      // last packet
+      if (((incomingPacket.head.fragoff >> 13) & 1) == 0) {
+        totalSize = offset + len
+      }
+
+      if (size == totalSize) {
+        // assemble successfully
+        fragmentHashMap.remove(incomingPacket.head.id)
+
+        val newPacket = new IPPacket
+        val newHead = new IPHead
+        newHead.versionAndIhl = incomingPacket.head.versionAndIhl
+        newHead.tos = incomingPacket.head.tos
+        newHead.ttl = incomingPacket.head.ttl
+        newHead.id = incomingPacket.head.id
+        newHead.protocol = incomingPacket.head.protocol
+        newHead.saddr = incomingPacket.head.saddr
+        newHead.daddr = incomingPacket.head.daddr
+        newHead.check = 0
+        newHead.fragoff = 0
+        newHead.totlen = totalSize + (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
+
+        newPacket.head = newHead
+        newPacket.payLoad = array
+        return newPacket
+      } else {
+        // initial
+        fragmentHashMap.update(incomingPacket.head.id, (time, size, totalSize, array))
+      }
+    } else {
+      val array = new Array[Byte](MaxPacket)
+      val offset = (incomingPacket.head.fragoff & (~(1 << 13))) * 8
+      val len = incomingPacket.head.totlen - (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
+      Array.copy(incomingPacket.payLoad, 0, array, offset, len)
+      fragmentHashMap.put(incomingPacket.head.id, (System.currentTimeMillis, 0, -1, array))
+    }
+
+    null
   }
 }

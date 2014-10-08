@@ -47,6 +47,10 @@ class NodeInterface {
   // remote virtual addr => interface
   var virtAddrToInterface = new HashMap[InetAddress, LinkInterface]
 
+  // Hashmap for Fragmentation
+  // [id, (time, currentSize, totalSize, waitingArray)]
+  var fragPacket = new LinkedHashMap[Int, (Long, Int, Int, Array[Byte])]
+
   // without locking UDP, send and receive can be at the same time
   // read/write lock for routingTable
   val routingTableLock = new ReentrantReadWriteLock
@@ -137,6 +141,7 @@ class NodeInterface {
 
   def recvPacket() {
     try {
+
       val pkt = new IPPacket
 
       val maxBuf = Array.ofDim[Byte](MaxPacket)
@@ -172,7 +177,15 @@ class NodeInterface {
       option match {
         case Some(interface) => {
           if (interface.isUpOrDown) {
-            interface.inBuffer.bufferWrite(pkt)
+            // Whether the packet needs to be reassembled
+            if (pkt.head.daddr == interface.getLocalIP && (pkt.head.fragoff == 0 || (pkt.head.fragoff >> 14) == 1)) {
+              interface.inBuffer.bufferWrite(pkt)
+            } else {
+              val reassembledPacket = IPPacketFragmentation.reassemblePacket(fragPacket, pkt)
+              if (reassembledPacket != null) {
+                interface.inBuffer.bufferWrite(reassembledPacket)
+              }
+            }
           } else {
             // println("Receive: interface " + interface.id + " down, drop the packet")
           }
@@ -184,7 +197,6 @@ class NodeInterface {
       // disconnect
       case ex: IOException => println("Close the socket")
     }
-
   }
 
   def generateAndSendPacket(arr: Array[String], line: String) {
