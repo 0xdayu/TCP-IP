@@ -93,18 +93,19 @@ object IPPacketFragmentation {
         newHead.totlen = totalSize + (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
 
         newPacket.head = newHead
-        newPacket.payLoad = array
+        newPacket.payLoad = array.slice(0, totalSize)
         return newPacket
       } else {
-        // initial
+        // update
         fragmentHashMap.update(incomingPacket.head.id, (time, size, totalSize, array))
       }
     } else {
+      // initial
       val array = new Array[Byte](MaxPacket)
       val offset = (incomingPacket.head.fragoff & (~(1 << 13))) * 8
       val len = incomingPacket.head.totlen - (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
       Array.copy(incomingPacket.payLoad, 0, array, offset, len)
-      fragmentHashMap.put(incomingPacket.head.id, (System.currentTimeMillis, 0, -1, array))
+      fragmentHashMap.put(incomingPacket.head.id, (System.currentTimeMillis, len, -1, array))
     }
 
     null
