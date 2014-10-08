@@ -47,9 +47,12 @@ class NodeInterface {
   // remote virtual addr => interface
   var virtAddrToInterface = new HashMap[InetAddress, LinkInterface]
 
-  // Hashmap for Fragmentation
+  // HashMap for Fragmentation
   // [id, (time, currentSize, totalSize, waitingArray)]
-  var fragPacket = new LinkedHashMap[Int, (Long, Int, Int, Array[Byte])]
+  val TimeFrag = 20000
+  val fragPacket = new LinkedHashMap[Int, (Long, Int, Int, Array[Byte])]
+  val fragTimeOut = new Timer
+  val fragPacketLock = new ReentrantReadWriteLock
 
   // without locking UDP, send and receive can be at the same time
   // read/write lock for routingTable
@@ -86,6 +89,9 @@ class NodeInterface {
 
     // timeout of each 12 seconds, we start after 5 seconds (first time)
     expire.schedule(new Expire(this), TimeExpire)
+
+    // timeout of each 20 seconds
+    fragTimeOut.schedule(new FragTimeOut(this), TimeFrag)
   }
 
   def sendPacket(interface: LinkInterface) {
@@ -181,7 +187,7 @@ class NodeInterface {
             if (pkt.head.daddr == interface.getLocalIP && (pkt.head.fragoff == 0 || (pkt.head.fragoff >> 14) == 1)) {
               interface.inBuffer.bufferWrite(pkt)
             } else {
-              val reassembledPacket = IPPacketFragmentation.reassemblePacket(fragPacket, pkt)
+              val reassembledPacket = IPPacketFragmentation.reassemblePacket(fragPacket, pkt, fragPacketLock)
               if (reassembledPacket != null) {
                 interface.inBuffer.bufferWrite(reassembledPacket)
               }

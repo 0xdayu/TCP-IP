@@ -2,6 +2,7 @@ package util
 
 import ip.{ IPPacket, IPHead }
 import scala.collection.mutable.LinkedHashMap
+import scala.actors.threadpool.locks.ReentrantReadWriteLock
 
 object IPPacketFragmentation {
   val MaxPacket = 64 * 1024
@@ -61,7 +62,8 @@ object IPPacketFragmentation {
     }
   }
 
-  def reassemblePacket(fragmentHashMap: LinkedHashMap[Int, (Long, Int, Int, Array[Byte])], incomingPacket: IPPacket): IPPacket = {
+  def reassemblePacket(fragmentHashMap: LinkedHashMap[Int, (Long, Int, Int, Array[Byte])], incomingPacket: IPPacket, fragPacketLock: ReentrantReadWriteLock): IPPacket = {
+    fragPacketLock.writeLock.lock
     if (fragmentHashMap.contains(incomingPacket.head.id)) {
       var (time, size, totalSize, array) = fragmentHashMap.get(incomingPacket.head.id).getOrElse(null)
 
@@ -94,6 +96,7 @@ object IPPacketFragmentation {
 
         newPacket.head = newHead
         newPacket.payLoad = array.slice(0, totalSize)
+        fragPacketLock.writeLock.unlock
         return newPacket
       } else {
         // update
@@ -108,6 +111,7 @@ object IPPacketFragmentation {
       fragmentHashMap.put(incomingPacket.head.id, (System.currentTimeMillis, len, -1, array))
     }
 
+    fragPacketLock.writeLock.unlock
     null
   }
 }
