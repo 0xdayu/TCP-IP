@@ -424,10 +424,11 @@ class NodeInterface {
       val mtu = arr(2).trim.toInt
 
       if (num < linkInterfaceArray.length && num >= 0) {
-        if (mtu >= DefaultHeadLength) {
+        // at least 28
+        if (mtu >= DefaultHeadLength + 8) {
           linkInterfaceArray(num).mtu = mtu
         } else {
-          println("Wrong MTU size. The size should be at least: " + DefaultHeadLength)
+          println("Wrong MTU size. The size should be at least: " + (DefaultHeadLength + 8))
         }
       } else {
         println("No such interface: " + num)

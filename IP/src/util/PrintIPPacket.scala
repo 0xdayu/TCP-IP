@@ -58,9 +58,9 @@ object PrintIPPacket {
     println("Total length:\t\t" + head.totlen)
 
     println("Identification:\t\t" + head.id)
-    println("Don't Fragment:\t\t" + (head.fragoff & (1 << 14)))
-    println("More Fragments:\t\t" + (head.fragoff & (1 << 13)))
-    println("Fragment Offset:\t" + (head.fragoff & ~(1 << 14) & ~(1 << 13)) * 8)
+    println("Don't Fragment:\t\t" + ((head.fragoff >> 14) & 1))
+    println("More Fragments:\t\t" + ((head.fragoff >> 13) & 1))
+    println("Fragment Offset (*8):\t" + (head.fragoff & ~(1 << 14) & ~(1 << 13)) * 8)
 
     println("Time to live:\t\t" + head.ttl)
     println("The protocol number:\t" + head.protocol)
