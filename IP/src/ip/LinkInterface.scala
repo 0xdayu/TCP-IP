@@ -14,6 +14,7 @@ class LinkInterface(_link: Link, _id: Int, nodeInterface: NodeInterface) {
   val outBuffer = new FIFOBuffer(MaxBufferSize)
   val link = _link
   val id = _id
+  var mtu: Int = nodeInterface.DefaultMTU
 
   def compareIP(ip: InetAddress) = ip == getLocalIP
 

@@ -88,40 +88,45 @@ class NodeInterface {
     if (interface.isUpOrDown) {
       if (!interface.outBuffer.isEmpty) {
         val pkt = interface.outBuffer.bufferRead
-        val headBuf: Array[Byte] = ConvertObject.headToByte(pkt.head)
+        val packetFragmentationArray = IPPacketFragmentation.fragment(pkt, interface.mtu)
 
-        // checksum remove
-        headBuf(10) = 0
-        headBuf(11) = 0
+        if (packetFragmentationArray != null) {
+          for (newPkt <- packetFragmentationArray) {
+            val headBuf: Array[Byte] = ConvertObject.headToByte(newPkt.head)
 
-        val checkSum = IPSum.ipsum(headBuf)
+            // checksum remove
+            headBuf(10) = 0
+            headBuf(11) = 0
 
-        pkt.head.check = (checkSum & 0xffff).asInstanceOf[Int]
+            val checkSum = IPSum.ipsum(headBuf)
 
-        // fill checksum
-        headBuf(10) = ((checkSum >> 8) & 0xff).asInstanceOf[Byte]
-        headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
+            newPkt.head.check = (checkSum & 0xffff).asInstanceOf[Int]
 
-        // XXXXXXXX Test
-        if (pkt.head.protocol == Data) {
-          PrintIPPacket.printIPPacket(pkt, false, false, false)
-          // PrintIPPacket.printIPPacket(pkt, true, true, false)
-        } else {
-          PrintIPPacket.printIPPacket(pkt, false, false, true)
-          // PrintIPPacket.printIPPacket(pkt, true, true, true)
-        }
+            // fill checksum
+            headBuf(10) = ((checkSum >> 8) & 0xff).asInstanceOf[Byte]
+            headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
 
-        if (headBuf != null) {
-          // TODO: static constant MTU
-          val totalBuf = headBuf ++ pkt.payLoad
+            // Test
+            if (newPkt.head.protocol == Data) {
+              PrintIPPacket.printIPPacket(newPkt, false, false, false)
+              // PrintIPPacket.printIPPacket(newPkt, true, true, false)
+            } else {
+              PrintIPPacket.printIPPacket(newPkt, false, false, true)
+              // PrintIPPacket.printIPPacket(newPkt, true, true, true)
+            }
 
-          val packet = new DatagramPacket(totalBuf, totalBuf.length, interface.link.remotePhysHost, interface.link.remotePhysPort)
+            if (headBuf != null) {
+              val totalBuf = headBuf ++ newPkt.payLoad
 
-          try {
-            socket.send(packet)
-          } catch {
-            // disconnect
-            case ex: IOException => println("Error: send packet, cannot reach that remotePhysHost")
+              val packet = new DatagramPacket(totalBuf, totalBuf.length, interface.link.remotePhysHost, interface.link.remotePhysPort)
+
+              try {
+                socket.send(packet)
+              } catch {
+                // disconnect
+                case ex: IOException => println("Error: send packet, cannot reach that remotePhysHost")
+              }
+            }
           }
         }
       }
@@ -419,7 +424,11 @@ class NodeInterface {
       val mtu = arr(2).trim.toInt
 
       if (num < linkInterfaceArray.length && num >= 0) {
-        //todo
+        if (mtu >= DefaultHeadLength) {
+          linkInterfaceArray(num).mtu = mtu
+        } else {
+          println("Wrong MTU size. The size should be at least: " + DefaultHeadLength)
+        }
       } else {
         println("No such interface: " + num)
       }
