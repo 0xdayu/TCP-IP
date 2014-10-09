@@ -74,6 +74,11 @@ object Handler {
     }
 
     val rip = ConvertObject.byteToRIP(packet.payLoad)
+    // deal bad rip
+    if (rip == null) {
+      return
+    }
+
     if (rip.command == nodeInterface.RIPRequest) {
       // Receive request from the neighbor, means the neighbor is up, check the routing table to see whether it exists
       // If no, add to the routing table, otherwise ignore 
@@ -134,11 +139,11 @@ object Handler {
           tempEntryArray += (entry._2._1, entry._1).asInstanceOf[(Int, InetAddress)] // cost, destination
         }
       }
-      
+
       // Announce all up link interfaces
-      for (interface <- nodeInterface.linkInterfaceArray){
-        if (interface.isUpOrDown){
-        	tempEntryArray += (0, interface.getLocalIP).asInstanceOf[(Int, InetAddress)] // cost, destination	
+      for (interface <- nodeInterface.linkInterfaceArray) {
+        if (interface.isUpOrDown) {
+          tempEntryArray += (0, interface.getLocalIP).asInstanceOf[(Int, InetAddress)] // cost, destination	
         }
       }
       responseRIP.numEntries = tempEntryArray.length
@@ -146,7 +151,7 @@ object Handler {
 
       nodeInterface.ripResponse(packet.head.saddr, responseRIP)
       nodeInterface.routingTableLock.readLock.unlock
-      
+
     } else { // Response all RIP request
       // First, insert neighbor to the routing table
       val updateRIP = new RIP

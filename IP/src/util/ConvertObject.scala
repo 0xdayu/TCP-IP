@@ -43,6 +43,10 @@ object ConvertObject {
     // Big-Endian
     head.versionAndIhl = ConvertNumber.uint8ToShort(buf(0))
 
+    if (headLen(buf(0)) > buf.length) {
+      return null
+    }
+
     head.tos = ConvertNumber.uint8ToShort(buf(1))
 
     head.totlen = (((buf(2) << 8) | buf(3)) & 0xffff).asInstanceOf[Int]
@@ -88,11 +92,20 @@ object ConvertObject {
   }
 
   def byteToRIP(buf: Array[Byte]): RIP = {
+    if (buf.length < 4) {
+      return null
+    }
+
     val rip = new RIP
 
     // Big-Endian
     rip.command = (((buf(0) << 8) | buf(1)) & 0xffff).asInstanceOf[Int]
     rip.numEntries = (((buf(2) << 8) | buf(3)) & 0xffff).asInstanceOf[Int]
+
+    // not equal
+    if (buf.length != 4 + rip.numEntries * 8) {
+      return null
+    }
 
     val array = Array.ofDim[(Int, InetAddress)](rip.numEntries)
     var i = 0

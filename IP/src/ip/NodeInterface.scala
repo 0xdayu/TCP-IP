@@ -170,6 +170,11 @@ class NodeInterface {
       // convert to IPHead
       pkt.head = ConvertObject.byteToHead(headTotalBuf)
 
+      // drop 
+      if (pkt.head == null) {
+        return
+      }
+
       if (((pkt.head.versionAndIhl >> 4) & 0xf).asInstanceOf[Byte] != 4) {
         println("We can only receive packet of IPv4")
         return
