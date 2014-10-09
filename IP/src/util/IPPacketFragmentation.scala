@@ -23,7 +23,13 @@ object IPPacketFragmentation {
 
       val packetFragmentationArray = new Array[IPPacket](packetFragmentationNumer)
 
-      var currentOffset = 0
+      // offset depending on the original one
+      var currentOffset = (packet.head.fragoff & ((1 << 14) - 1)) * 8
+      var more = 0
+      if ((packet.head.fragoff & (1 << 13)) == 1) {
+        // have been fragmented before and this is not last one
+        more = 1
+      }
 
       for (i <- Range(0, packetFragmentationNumer)) {
         val newPacket = new IPPacket
@@ -46,7 +52,7 @@ object IPPacketFragmentation {
         } else {
           // Last Fragmentation
           newHead.totlen = totalContentLength - currentOffset + ihl
-          newHead.fragoff = currentOffset / 8
+          newHead.fragoff = (more << 13) + currentOffset / 8
 
           newPacket.head = newHead
           // large than the length (ignore)
