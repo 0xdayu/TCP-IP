@@ -54,7 +54,7 @@ Design
 
 User Manual
 -----------
-Usage: node <linkfile>
+Usage: ./node linkfile
 
 Test net (all the nodes): ./test.sh net/loop/
 

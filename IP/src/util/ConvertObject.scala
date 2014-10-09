@@ -43,23 +43,23 @@ object ConvertObject {
     // Big-Endian
     head.versionAndIhl = ConvertNumber.uint8ToShort(buf(0))
 
-    if (headLen(buf(0)) > buf.length) {
+    if (headLen(buf(0)) != buf.length) {
       return null
     }
 
     head.tos = ConvertNumber.uint8ToShort(buf(1))
 
-    head.totlen = (((buf(2) << 8) | buf(3)) & 0xffff).asInstanceOf[Int]
+    head.totlen = ((((buf(2) & 0xff) << 8) | (buf(3) & 0xff)) & 0xffff).asInstanceOf[Int]
 
-    head.id = (((buf(4) << 8) | buf(5)) & 0xffff).asInstanceOf[Int]
+    head.id = ((((buf(4) & 0xff) << 8) | (buf(5) & 0xff)) & 0xffff).asInstanceOf[Int]
 
-    head.fragoff = (((buf(6) << 8) | buf(7)) & 0xffff).asInstanceOf[Int]
+    head.fragoff = ((((buf(6) & 0xff) << 8) | (buf(7) & 0xff)) & 0xffff).asInstanceOf[Int]
 
     head.ttl = ConvertNumber.uint8ToShort(buf(8))
 
     head.protocol = ConvertNumber.uint8ToShort(buf(9))
 
-    head.check = (((buf(10) << 8) | buf(11)) & 0xffff).asInstanceOf[Int]
+    head.check = ((((buf(10) & 0xff) << 8) | (buf(11) & 0xff)) & 0xffff).asInstanceOf[Int]
 
     head.saddr = toInetAddr(buf, 12)
 
@@ -99,8 +99,8 @@ object ConvertObject {
     val rip = new RIP
 
     // Big-Endian
-    rip.command = (((buf(0) << 8) | buf(1)) & 0xffff).asInstanceOf[Int]
-    rip.numEntries = (((buf(2) << 8) | buf(3)) & 0xffff).asInstanceOf[Int]
+    rip.command = ((((buf(0) & 0xff) << 8) | (buf(1) & 0xff)) & 0xffff).asInstanceOf[Int]
+    rip.numEntries = ((((buf(2) & 0xff) << 8) | (buf(3) & 0xff)) & 0xffff).asInstanceOf[Int]
 
     // not equal
     if (buf.length != 4 + rip.numEntries * 8) {
@@ -111,8 +111,8 @@ object ConvertObject {
     var i = 0
 
     for (count <- Range(4, 4 + rip.numEntries * 8, 8)) {
-      val part1 = ((buf(count) << 24) | (buf(count + 1) << 16)).asInstanceOf[Int]
-      val part2 = ((buf(count + 2) << 8) | buf(count + 3)).asInstanceOf[Int]
+      val part1 = (((buf(count) & 0xff) << 24) | ((buf(count + 1) & 0xff) << 16)).asInstanceOf[Int]
+      val part2 = (((buf(count + 2) & 0xff) << 8) | (buf(count + 3) & 0xff)).asInstanceOf[Int]
 
       array(i) = (part1 | part2, toInetAddr(buf, count + 4))
       i += 1
