@@ -56,6 +56,8 @@ User Manual
 -----------
 Usage: node <linkfile>
 
+Test net (all the nodes): ./test.sh net/loop/
+
 Manual:
 
 	[h]elp							Help Printing
