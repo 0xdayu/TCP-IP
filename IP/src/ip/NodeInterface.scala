@@ -184,13 +184,20 @@ class NodeInterface {
         case Some(interface) => {
           if (interface.isUpOrDown) {
             // Whether the packet needs to be reassembled
-            if (pkt.head.daddr == interface.getLocalIP && (pkt.head.fragoff == 0 || (pkt.head.fragoff >> 14) == 1)) {
-              interface.inBuffer.bufferWrite(pkt)
-            } else {
+            // check all the interfaces
+            var flag = false
+            for (_interface <- linkInterfaceArray) {
+              if (pkt.head.daddr == _interface.getLocalIP) {
+                flag = true
+              }
+            }
+            if (flag && pkt.head.fragoff != 0 && (pkt.head.fragoff >> 14) != 1) {
               val reassembledPacket = IPPacketFragmentation.reassemblePacket(fragPacket, pkt, fragPacketLock)
               if (reassembledPacket != null) {
                 interface.inBuffer.bufferWrite(reassembledPacket)
               }
+            } else {
+              interface.inBuffer.bufferWrite(pkt)
             }
           } else {
             // println("Receive: interface " + interface.id + " down, drop the packet")

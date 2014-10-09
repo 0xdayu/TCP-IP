@@ -65,7 +65,7 @@ class LinkInterface(_link: Link, _id: Int, nodeInterface: NodeInterface) {
     this.synchronized {
       val str = if (isUpOrDown) "UP" else "DOWN"
       println("\t" + id + ": " + getLocalIP.getHostAddress +
-        " -> " + getRemoteIP.getHostAddress + ", " + str)
+        " -> " + getRemoteIP.getHostAddress + ", " + str + ", MTU: " + mtu)
     }
   }
 }
