@@ -24,9 +24,11 @@ object IPPacketFragmentation {
       val packetFragmentationArray = new Array[IPPacket](packetFragmentationNumer)
 
       // offset depending on the original one
-      var currentOffset = (packet.head.fragoff & ((1 << 14) - 1)) * 8
+      var currentOffset = (packet.head.fragoff & ((1 << 13) - 1)) * 8
+      var currentPos = 0
       var more = 0
-      if ((packet.head.fragoff & (1 << 13)) == 1) {
+
+      if (((packet.head.fragoff >> 13) & 1) == 1) {
         // have been fragmented before and this is not last one
         more = 1
       }
@@ -41,6 +43,7 @@ object IPPacketFragmentation {
         newHead.protocol = packet.head.protocol
         newHead.saddr = packet.head.saddr
         newHead.daddr = packet.head.daddr
+        newHead.option = packet.head.option
 
         // totlen, fragoff, checksum
         if (i != (packetFragmentationNumer - 1)) {
@@ -48,18 +51,19 @@ object IPPacketFragmentation {
           newHead.fragoff = (1 << 13) + currentOffset / 8
 
           newPacket.head = newHead
-          newPacket.payLoad = packet.payLoad.slice(currentOffset, currentOffset + packetFragmentationSize)
+          newPacket.payLoad = packet.payLoad.slice(currentPos, currentPos + packetFragmentationSize)
         } else {
           // Last Fragmentation
-          newHead.totlen = totalContentLength - currentOffset + ihl
+          newHead.totlen = totalContentLength - currentPos + ihl
           newHead.fragoff = (more << 13) + currentOffset / 8
 
           newPacket.head = newHead
           // large than the length (ignore)
-          newPacket.payLoad = packet.payLoad.slice(currentOffset, currentOffset + packetFragmentationSize)
+          newPacket.payLoad = packet.payLoad.slice(currentPos, currentPos + packetFragmentationSize)
         }
 
         currentOffset = currentOffset + packetFragmentationSize
+        currentPos = currentPos + packetFragmentationSize
         packetFragmentationArray(i) = newPacket
       }
       packetFragmentationArray
@@ -73,8 +77,9 @@ object IPPacketFragmentation {
     if (fragmentHashMap.contains(incomingPacket.head.id)) {
       var (time, size, totalSize, array) = fragmentHashMap.get(incomingPacket.head.id).getOrElse(null)
 
-      val offset = (incomingPacket.head.fragoff & (~(1 << 13))) * 8
+      val offset = (incomingPacket.head.fragoff & ((1 << 13) - 1)) * 8
       val len = incomingPacket.head.totlen - (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
+
       Array.copy(incomingPacket.payLoad, 0, array, offset, len)
 
       size += len
@@ -99,6 +104,7 @@ object IPPacketFragmentation {
         newHead.check = 0
         newHead.fragoff = 0
         newHead.totlen = totalSize + (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
+        newHead.option = incomingPacket.head.option;
 
         newPacket.head = newHead
         newPacket.payLoad = array.slice(0, totalSize)
@@ -111,7 +117,7 @@ object IPPacketFragmentation {
     } else {
       // initial
       val array = new Array[Byte](MaxPacket)
-      val offset = (incomingPacket.head.fragoff & (~(1 << 13))) * 8
+      val offset = (incomingPacket.head.fragoff & ((1 << 13) - 1)) * 8
       val len = incomingPacket.head.totlen - (incomingPacket.head.versionAndIhl & 0xf).asInstanceOf[Int] * 4
       Array.copy(incomingPacket.payLoad, 0, array, offset, len)
       fragmentHashMap.put(incomingPacket.head.id, (System.currentTimeMillis, len, -1, array))

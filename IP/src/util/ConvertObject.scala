@@ -4,6 +4,7 @@ import ip.{ IPHead, RIP }
 import java.net.InetAddress
 
 object ConvertObject {
+  val DefaultHeadLength = 20
 
   // helper function
   def headToByte(head: IPHead): Array[Byte] = {
@@ -33,6 +34,10 @@ object ConvertObject {
 
     toByteAddr(buf, 12, head.saddr)
     toByteAddr(buf, 16, head.daddr)
+
+    if (head.option != null) {
+      Array.copy(head.option, 0, buf, DefaultHeadLength, head.option.length)
+    }
 
     buf
   }
@@ -64,6 +69,10 @@ object ConvertObject {
     head.saddr = toInetAddr(buf, 12)
 
     head.daddr = toInetAddr(buf, 16)
+
+    if (headLen(buf(0)) != DefaultHeadLength) {
+      head.option = buf.slice(DefaultHeadLength, buf.length)
+    }
 
     head
   }

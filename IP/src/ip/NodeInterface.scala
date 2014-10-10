@@ -196,6 +196,7 @@ class NodeInterface {
                 flag = true
               }
             }
+
             if (flag && pkt.head.fragoff != 0 && (pkt.head.fragoff >> 14) != 1) {
               val reassembledPacket = IPPacketFragmentation.reassemblePacket(fragPacket, pkt, fragPacketLock)
               if (reassembledPacket != null) {
@@ -225,7 +226,6 @@ class NodeInterface {
       // Check whether rip is in the routing table
       // lock
       routingTableLock.readLock.lock
-      // TODO: static constant MTU
       var flag = false
       try {
         flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
