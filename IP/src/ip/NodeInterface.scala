@@ -13,6 +13,7 @@ class NodeInterface {
   val DefaultVersion = 4
   val DefaultHeadLength = 20
   val DefaultMTU = 1400
+  val MinMTU = 68
   val MaxPacket = 64 * 1024
   val MaxTTL = 15
   val RIPInifinity = 16
@@ -454,11 +455,11 @@ class NodeInterface {
       val mtu = arr(2).trim.toInt
 
       if (num < linkInterfaceArray.length && num >= 0) {
-        // at least 28
-        if (mtu >= DefaultHeadLength + 8) {
+        // at least 68
+        if (mtu >= MinMTU) {
           linkInterfaceArray(num).mtu = mtu
         } else {
-          println("Wrong MTU size. The size should be at least: " + (DefaultHeadLength + 8))
+          println("Wrong MTU size. The size should be at least: " + MinMTU)
         }
       } else {
         println("No such interface: " + num)

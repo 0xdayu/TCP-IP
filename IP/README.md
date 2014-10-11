@@ -78,7 +78,7 @@ Manual:
 
 Extra Credit
 ------------
-1.	The minimum mtu is set to the head size + minimum offset (20 + 8 = 28)
+1.	The minimum mtu is set to the max head size + minimum offset (60 + 8 = 68)
 
 2.	Fragmenting is done before sending the packet, while assembling the packet is done before receiving the packet that corresponding to one of interface of that node
 
