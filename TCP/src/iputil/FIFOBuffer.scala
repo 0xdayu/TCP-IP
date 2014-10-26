@@ -1,4 +1,4 @@
-package util
+package iputil
 
 import scala.collection.mutable.Queue
 import ip.IPPacket

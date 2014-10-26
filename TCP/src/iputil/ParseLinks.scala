@@ -1,4 +1,4 @@
-package util
+package iputil
 
 import scala.io.Source
 import java.io.{ FileNotFoundException, IOException }

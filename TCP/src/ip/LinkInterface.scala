@@ -1,6 +1,6 @@
 package ip
 
-import util._
+import iputil._
 import scala.actors.threadpool.locks.ReentrantReadWriteLock
 import java.net.InetAddress
 

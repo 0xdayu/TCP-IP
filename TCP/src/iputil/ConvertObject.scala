@@ -1,4 +1,4 @@
-package util
+package iputil
 
 import ip.{ IPHead, RIP }
 import java.net.InetAddress
@@ -45,10 +45,14 @@ object ConvertObject {
   def byteToHead(buf: Array[Byte]): IPHead = {
     val head = new IPHead
 
+    if (buf.length < DefaultHeadLength) {
+      return null
+    }
+    
     // Big-Endian
     head.versionAndIhl = ConvertNumber.uint8ToShort(buf(0))
 
-    if (headLen(buf(0)) != buf.length) {
+    if (headLen(buf(0)) != buf.length || headLen(buf(0)) < DefaultHeadLength) {
       return null
     }
 

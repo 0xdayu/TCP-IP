@@ -1,6 +1,6 @@
 package ip
 
-import util._
+import iputil._
 import java.net.{ DatagramSocket, InetAddress, DatagramPacket, InetSocketAddress }
 import java.io.IOException
 import scala.collection.mutable.{ HashMap, LinkedHashMap }

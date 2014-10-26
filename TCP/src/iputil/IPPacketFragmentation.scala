@@ -1,4 +1,4 @@
-package util
+package iputil
 
 import ip.{ IPPacket, IPHead }
 import scala.collection.mutable.LinkedHashMap

@@ -53,11 +53,20 @@ object node {
       } else {
         arr(0).trim match {
           case "h" | "help" => printHelp()
-          case "i" | "interfaces" => nodeInterface.printInterfaces(arr)
-          case "r" | "routes" => nodeInterface.printRoutes(arr)
+          case "li" | "interfaces" => nodeInterface.printInterfaces(arr)
+          case "lr" | "routes" => nodeInterface.printRoutes(arr)
+          case "ls" | "sockets" => 
           case "d" | "down" => nodeInterface.interfacesDown(arr)
           case "u" | "up" => nodeInterface.interfacesUp(arr)
-          case "s" | "send" => nodeInterface.generateAndSendPacket(arr, line)
+          case "a" | "accept" =>
+          case "c" | "connect" => 
+          case "s" | "w" | "send" => nodeInterface.generateAndSendPacket(arr, line)
+          case "r" | "recv" =>
+          case "sf" | "sendfile" =>
+          case "rf" | "recvfile" =>
+          case "wd" | "window" =>
+          case "sd" | "shutdown" =>
+          case "cl" | "close" =>
           case "m" | "mtu" => nodeInterface.setMTU(arr)
           case "q" | "quit" =>
             {

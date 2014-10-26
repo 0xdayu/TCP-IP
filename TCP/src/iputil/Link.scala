@@ -1,4 +1,4 @@
-package util
+package iputil
 
 import java.net.InetAddress
 

@@ -1,4 +1,4 @@
-package util
+package iputil
 
 object IPSum {
   def ipsum(packet: Array[Byte]): Long = {

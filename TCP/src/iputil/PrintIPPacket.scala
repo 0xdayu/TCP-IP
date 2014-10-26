@@ -1,4 +1,4 @@
-package util
+package iputil
 
 import ip.{ IPPacket, IPHead, RIP }
 import java.text.DecimalFormat

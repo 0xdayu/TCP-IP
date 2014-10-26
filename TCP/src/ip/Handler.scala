@@ -1,6 +1,6 @@
 package ip
 
-import util.{ PrintIPPacket, ConvertObject }
+import iputil.{ PrintIPPacket, ConvertObject }
 import java.net.InetAddress
 import scala.collection.mutable.ArrayBuffer
 import scala.util.control.Breaks._
