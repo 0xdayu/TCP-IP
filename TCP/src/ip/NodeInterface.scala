@@ -39,9 +39,6 @@ class NodeInterface {
   val expire = new Timer
   val entryExpireLock = new ReentrantReadWriteLock
 
-  val UsageCommand = "We only accept: [h]elp, [i]nterfaces, [r]outes," +
-    "[d]own <integer>, [u]p <integer>, [s]end <vip> <proto> <string>, [m]tu <integer0> <integer1>, [q]uit"
-
   // remote phys addr + port => interface
   var physAddrToInterface = new HashMap[InetSocketAddress, LinkInterface]
 
@@ -219,69 +216,51 @@ class NodeInterface {
     }
   }
 
-  def generateAndSendPacket(arr: Array[String], line: String) {
-    if (arr.length <= 3) {
-      println(UsageCommand)
-    } else {
-      val dstVirtIp = arr(1)
-      // Check whether rip is in the routing table
-      // lock
-      routingTableLock.readLock.lock
-      var flag = false
-      try {
-        flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
-      } catch {
-        case _: Throwable =>
-          println("Invalid IP address")
-          return
-      }
+  def generateAndSendPacket(dstVirtIp: String, proto: Int, data: Array[Byte]) {
+    // Check whether rip is in the routing table
+    // lock
+    routingTableLock.readLock.lock
+    var flag = false
+    try {
+      flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
+    } catch {
+      case _: Throwable =>
+        println("Invalid IP address")
+        return
+    }
 
-      if (!flag) {
-        for (interface <- linkInterfaceArray) {
-          if (interface.getLocalIP == InetAddress.getByName(dstVirtIp)) {
-            // local print
-            if (interface.isUpOrDown) {
-              if (arr(2).forall(_.isDigit)) {
-                val proto = arr(2).toInt
-                if (proto == Data) {
-                  val len = line.indexOf(arr(2), line.indexOf(arr(1)) + arr(1).length) + 1 + arr(2).length
-                  println("Local printing: " + line.slice(len, line.length))
-                } else {
-                  println("Unsupport Protocol: " + proto)
-                }
-              } else {
-                println(UsageCommand)
-              }
+    if (!flag) {
+      for (interface <- linkInterfaceArray) {
+        if (interface.getLocalIP == InetAddress.getByName(dstVirtIp)) {
+          // local print
+          if (interface.isUpOrDown) {
+            if (proto == Data) {
+              println("Local printing: " + new String(data.map(_.toChar)))
             } else {
-              // println("interface " + interface.id + "down: " + "no way to send out")
+              println("Unsupport Protocol: " + proto)
             }
-
-            return
+          } else {
+            // println("interface " + interface.id + "down: " + "no way to send out")
           }
+
+          return
         }
       }
+    }
 
-      routingTableLock.readLock.unlock
-      if (!flag) {
-        println("Destination Unreachable!")
-      } else if (arr(2).forall(_.isDigit)) {
-        // Check whether the protocol is test data
-        val proto = arr(2).toInt
-        if (proto == Data) {
-
-          val len = line.indexOf(arr(2), line.indexOf(arr(1)) + arr(1).length) + 1 + arr(2).length
-          val userData = line.getBytes().slice(len, line.length)
-
-          if (userData.length > DefaultMTU - DefaultHeadLength) {
-            println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + userData.length + DefaultHeadLength)
-          } else {
-            generateIPPacket(InetAddress.getByName(dstVirtIp), proto, userData, true)
-          }
+    routingTableLock.readLock.unlock
+    if (!flag) {
+      println("Destination Unreachable!")
+    } else {
+      // Check whether the protocol is test data
+      if (proto == Data) {
+        if (data.length > DefaultMTU - DefaultHeadLength) {
+          println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + data.length + DefaultHeadLength)
         } else {
-          println("Unsupport Protocol: " + proto)
+          generateIPPacket(InetAddress.getByName(dstVirtIp), proto, data, true)
         }
       } else {
-        println(UsageCommand)
+        println("Unsupport Protocol: " + proto)
       }
     }
   }
@@ -377,95 +356,62 @@ class NodeInterface {
     }
   }
 
-  def printInterfaces(arr: Array[String]) {
-    if (arr.length != 1) {
-      println(UsageCommand)
-    } else {
-      println("Interfaces:")
-      var i = 0;
-      for (interface <- linkInterfaceArray) {
-        interface.linkInterfacePrint
-      }
+  def printInterfaces() {
+    println("Interfaces:")
+    var i = 0;
+    for (interface <- linkInterfaceArray) {
+      interface.linkInterfacePrint
     }
   }
 
-  def printRoutes(arr: Array[String]) {
-    if (arr.length != 1) {
-      println(UsageCommand)
+  def printRoutes() {
+    println("Routing table: ")
+    // lock
+    routingTableLock.readLock.lock
+    if (routingTable.size == 0) {
+      println("[no routes]")
     } else {
-      println("Routing table: ")
-      // lock
-      routingTableLock.readLock.lock
-      if (routingTable.size == 0) {
-        println("[no routes]")
-      } else {
-        for (entry <- routingTable) {
-          var throughAddr: String = ""
-          if (entry._1.getHostAddress() == entry._2._2.getHostAddress()) {
-            throughAddr = "self"
-          } else {
-            throughAddr = entry._2._2.getHostAddress()
-          }
-
-          println("Route to " + entry._1.getHostAddress() + " with cost " + entry._2._1 +
-            ", through " + throughAddr)
-        }
-      }
-      routingTableLock.readLock.unlock
-    }
-  }
-
-  def interfacesDown(arr: Array[String]) {
-    if (arr.length != 2) {
-      println(UsageCommand)
-    } else if (arr(1).trim.forall(_.isDigit)) {
-      val num = arr(1).trim.toInt
-
-      if (num < linkInterfaceArray.length && num >= 0) {
-        linkInterfaceArray(num).bringDown
-      } else {
-        println("No such interface: " + num)
-      }
-    } else {
-      println("[d]own: input should be number: " + arr(1).trim)
-    }
-  }
-
-  def interfacesUp(arr: Array[String]) {
-    if (arr.length != 2) {
-      println(UsageCommand)
-    } else if (arr(1).trim.forall(_.isDigit)) {
-      val num = arr(1).trim.toInt
-
-      if (num < linkInterfaceArray.length && num >= 0) {
-        linkInterfaceArray(num).bringUp
-      } else {
-        println("No such interface: " + num)
-      }
-    } else {
-      println("[u]p: input should be number: " + arr(1).trim)
-    }
-  }
-
-  def setMTU(arr: Array[String]) {
-    if (arr.length != 3) {
-      println(UsageCommand)
-    } else if (arr(1).trim.forall(_.isDigit) && arr(2).trim.forall(_.isDigit)) {
-      val num = arr(1).trim.toInt
-      val mtu = arr(2).trim.toInt
-
-      if (num < linkInterfaceArray.length && num >= 0) {
-        // at least 68
-        if (mtu >= MinMTU) {
-          linkInterfaceArray(num).mtu = mtu
+      for (entry <- routingTable) {
+        var throughAddr: String = ""
+        if (entry._1.getHostAddress() == entry._2._2.getHostAddress()) {
+          throughAddr = "self"
         } else {
-          println("Wrong MTU size. The size should be at least: " + MinMTU)
+          throughAddr = entry._2._2.getHostAddress()
         }
+
+        println("Route to " + entry._1.getHostAddress() + " with cost " + entry._2._1 +
+          ", through " + throughAddr)
+      }
+    }
+    routingTableLock.readLock.unlock
+  }
+
+  def interfacesDown(num: Int) {
+    if (num < linkInterfaceArray.length && num >= 0) {
+      linkInterfaceArray(num).bringDown
+    } else {
+      println("No such interface: " + num)
+    }
+  }
+
+  def interfacesUp(num: Int) {
+    if (num < linkInterfaceArray.length && num >= 0) {
+      linkInterfaceArray(num).bringUp
+    } else {
+      println("No such interface: " + num)
+    }
+  }
+
+  def setMTU(num: Int, mtu: Int) {
+    if (num < linkInterfaceArray.length && num >= 0) {
+      // at least 68
+      if (mtu >= MinMTU) {
+        linkInterfaceArray(num).mtu = mtu
       } else {
-        println("No such interface: " + num)
+        println("Wrong MTU size. The size should be at least: " + MinMTU)
       }
     } else {
-      println("[m]tu: input should be two numbers")
+      println("No such interface: " + num)
     }
   }
 }

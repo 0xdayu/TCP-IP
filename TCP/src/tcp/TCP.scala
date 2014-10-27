@@ -37,18 +37,18 @@ class TCP {
 	}
 	
 	def virAccept(socket: Int):TCPConnection = {
-	  
+	  null
 	}
 	
 	def virRead(socket: Int): Array[Byte] = {
-	  
+	  null
 	}
 	
 	def virWrite(socket: Int, buf: Array[Byte]) {
 	  
 	}
 	
-	def virShutdown(socket: Int, sdType: Int) {
+	def virShutDown(socket: Int, sdType: Int) {
 	  
 	}
 	
