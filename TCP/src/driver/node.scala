@@ -55,20 +55,20 @@ object node {
           case "h" | "help" => printHelp()
           case "li" | "interfaces" => nodeInterface.printInterfaces(arr)
           case "lr" | "routes" => nodeInterface.printRoutes(arr)
-          case "ls" | "sockets" => 
+          case "ls" | "sockets" => "todo"
           case "d" | "down" => nodeInterface.interfacesDown(arr)
           case "u" | "up" => nodeInterface.interfacesUp(arr)
-          case "a" | "accept" =>
-          case "c" | "connect" => 
+          case "a" | "accept" =>"todo"
+          case "c" | "connect" => "todo"
           case "s" | "w" | "send" => nodeInterface.generateAndSendPacket(arr, line)
-          case "r" | "recv" =>
-          case "sf" | "sendfile" =>
-          case "rf" | "recvfile" =>
-          case "wd" | "window" =>
-          case "sd" | "shutdown" =>
-          case "cl" | "close" =>
+          case "r" | "recv" =>"todo"
+          case "sf" | "sendfile" =>"todo"
+          case "rf" | "recvfile" =>"todo"
+          case "wd" | "window" =>"todo"
+          case "sd" | "shutdown" =>"todo"
+          case "cl" | "close" =>"todo"
           case "m" | "mtu" => nodeInterface.setMTU(arr)
-          case "q" | "quit" =>
+          case "q" | "quit" =>"todo"
             {
               nodeInterface.expire.cancel
               nodeInterface.periodicUpdate.cancel
