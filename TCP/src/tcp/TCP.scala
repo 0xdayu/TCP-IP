@@ -1,5 +1,6 @@
 package tcp
 
+import tcputil._
 import exception._
 import java.net.InetAddress
 import java.util.BitSet
@@ -50,6 +51,15 @@ class TCP {
   }
 
   def virListen(socket: Int) {
+    if (socket <= 3 || socket >= 65536) {
+      throw new InvalidSocketException(socket)
+    } else if (!socketArray.get(socket)) {
+      throw new UninitialSocketException(socket)
+    } else if (!boundedSocketHashMap.contains(socket)) {
+      throw new UnboundSocketException(socket)
+    } else {
+      boundedSocketHashMap.getOrElse(socket, null).setState(TCPState.LISTEN)
+    }
 
   }
 
