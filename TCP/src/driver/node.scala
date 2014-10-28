@@ -5,9 +5,9 @@ import util._
 
 object node {
   val UsageCommand = "We only accept: [h]help, [li]interfaces, [lr]routes, " +
-    "[d]down <integer>, [u]up <integer>, [a]accept <port>, [c]connect <ip> <port>, " +
-    "[s/w]send <socket> <data>, [r]recv <socket> <numbytes> <y/n>, [sf]sendfile <filename> <ip> <port>" +
-    "[rf]recvfile <filename> <port>, [wd]window <socket>, [sd]shutdown <socket> <read/write/both>," +
+    "[d]down <integer>, [u]up <integer>, [a]accept <port>, [c]connect <ip> <port>, [si]sendip <ip> <proto> <data>, " +
+    "[s/w]send <socket> <data>, [r]recv <socket> <numbytes> <y/n>, [sf]sendfile <filename> <ip> <port>, " +
+    "[rf]recvfile <filename> <port>, [wd]window <socket>, [sd]shutdown <socket> <read/write/both>, " +
     "[cl]close <socket>, [m]mtu <integer0> <integer1>, [q]quit"
 
   var nodeInterface: NodeInterface = _
@@ -63,7 +63,8 @@ object node {
           case "u" | "up" => upCmd(arr)
           case "a" | "accept" => acceptCmd(arr)
           case "c" | "connect" => connectCmd(arr)
-          case "s" | "w" | "send" => sendCmd(arr, line) // nodeInterface.generateAndSendPacket(arr, line)
+          case "si" | "sendip" => sendipCmd(arr, line)
+          case "s" | "w" | "send" => sendCmd(arr, line)
           case "r" | "recv" => recvCmd(arr)
           case "sf" | "sendfile" => sendFileCmd(arr)
           case "rf" | "recvfile" => recvFileCmd(arr)
@@ -100,6 +101,7 @@ object node {
     println("- [u]up <integer>: Bring an interface \"up\" (it must be an existing interface, probably one you brought down).")
     println("- [a]accept <port>: : Spawn a socket, bind it to the given port, and start accepting connections on that port.")
     println("- [c]connect <ip> <port>: Attempt to connect to the given ip address, in dot notation, on the given port.")
+    println("- [si]sendip <ip> <proto> <data>: Send a string on ip and proto")
     println("- [s/w]send <socket> <data>: Send a string on a socket.")
     println("- [r]recv <socket> <numbytes> <y/n>: Try to read data from a given socket. If the last argument is y, then you should block until numbytes is received, or the connection closes. If n, then don't block; return whatever recv returns. Default is n.")
     println("- [sf]sendfile <filename> <ip> <port>: Connect to the given ip and port, send the entirety of the specified file, and close the connection.")
@@ -177,6 +179,20 @@ object node {
       // TODO
     } else {
       println("[c]connect <ip> <port>: input should be port number: " + arr(2).trim)
+    }
+  }
+
+  def sendipCmd(arr: Array[String], line: String) {
+    if (arr.length <= 3) {
+      println(UsageCommand)
+    } else if (arr(2).trim.forall(_.isDigit)) {
+      val dstVirtIp = arr(1)
+      val proto = arr(2).toInt
+      val len = line.indexOf(arr(2), line.indexOf(arr(1)) + arr(1).length) + 1 + arr(2).length
+      val data = line.getBytes().slice(len, line.length)
+      nodeInterface.generateAndSendPacket(dstVirtIp, proto, data)
+    } else {
+      println("[si]sendip <ip> <proto> <data>: input should be proto number: " + arr(2).trim)
     }
   }
 
