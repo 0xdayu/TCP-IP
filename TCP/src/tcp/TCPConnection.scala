@@ -3,22 +3,33 @@ package tcp
 import tcputil.TCPState
 import scala.collection.mutable.HashMap
 import java.net.InetAddress
+import scala.util.Random
+import scala.compat.Platform
+import tcputil.CircularArray
 
 class TCPConnection(s: Int, p: Int, fb: Int) {
 
   var srcSocket: Int = s
   var srcPort: Int = p
   var state = TCPState.CLOSE
-  var sendBuf: Array[Byte] = new Array[Byte](fb)
-  var recvBuf: Array[Byte] = new Array[Byte](fb)
+  var sendBuf: CircularArray = new CircularArray(fb)
+  var recvBuf: CircularArray = new CircularArray(fb)
   // TODO: 
   //var slidingWinow: Array[Byte] = new Array[Byte](sw)
-  
+
   var dstIP: InetAddress = _
   var dstPort: Int = _
 
+  var seqNum: Long = new Random(Platform.currentTime).nextLong() % math.pow(2, 32).asInstanceOf[Long]
+  var ackNum: Long = _
+
   val previousState = new HashMap[TCPState.Value, Array[TCPState.Value]]
   val nextState = new HashMap[TCPState.Value, Array[TCPState.Value]]
+  
+  // sliding window
+  
+  
+  // flow window
 
   // Hardcode previous and next network state
   previousState.put(TCPState.CLOSE, Array(TCPState.SYN_SENT, TCPState.LISTEN, TCPState.LAST_ACK, TCPState.TIME_WAIT))
@@ -45,13 +56,25 @@ class TCPConnection(s: Int, p: Int, fb: Int) {
   nextState.put(TCPState.CLOSE_WAIT, Array(TCPState.LAST_ACK))
   nextState.put(TCPState.LAST_ACK, Array(TCPState.CLOSE))
 
-  def setState(next: TCPState.Value): Boolean = {
-    if (nextState.getOrElse(state, null).contains(next)) {
-      state = next
-      true
-    } else {
+  def setState(next: TCPState.Value, curr: TCPState.Value): Boolean = {
+    if (curr != state) {
       false
+    } else {
+      if (nextState.getOrElse(state, null).contains(next)) {
+        state = next
+        true
+      } else {
+        false
+      }
     }
+  }
+
+  def increaseSeqNumber(a: Int) = {
+    seqNum = (seqNum + a) % math.pow(2, 32).asInstanceOf[Long]
+  }
+  
+  def increaseAckNumber(a: Int) = {
+    ackNum = (ackNum + a) % math.pow(2, 32).asInstanceOf[Long]
   }
 
   //  def setState(s: TCPState.Value) {

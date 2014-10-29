@@ -1,8 +1,8 @@
 package tcp
 
 class TCPHead {
-	var sourcePort: Int = _ // (Short) source port
-	var destinationPort: Int = _ // (Short) destination port
+	var srcPort: Int = _ // (Short) source port
+	var dstPort: Int = _ // (Short) destination port
 	
 	var seqNum: Long = _ // (Int) sequence number
 	var ackNum: Long = _ // (Int) acknowledgment number

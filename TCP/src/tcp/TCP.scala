@@ -6,6 +6,7 @@ import java.net.InetAddress
 import java.util.BitSet
 import scala.collection.mutable.HashMap
 import scala.util.Random
+import scala.compat.Platform
 
 class TCP {
   // file descriptor, 0 - input, 1 - output, 2 - error
@@ -38,21 +39,9 @@ class TCP {
     throw new SocketUsedUpException
   }
 
-  def generatePortNumber(): Int = {
-    if (usedPortHashMap.size == portRightBound - portLeftBound + 1) {
-      -1
-    } else {
-      var result = new Random().nextInt(portRightBound + 1 - portLeftBound) + portLeftBound
-      while (!portArray.get(result)) {
-        if (result == portRightBound) {
-          result = portLeftBound
-        } else {
-          result += 1
-        }
-      }
-      result
-    }
-  }
+  
+  
+  def generateSequenceN
 
   def virBind(socket: Int, addr: InetAddress, port: Int) {
     // addr is not used in virBind
@@ -83,7 +72,7 @@ class TCP {
     } else if (!boundedSocketHashMap.contains(socket)) {
       throw new UnboundSocketException(socket)
     } else {
-      if (!boundedSocketHashMap.getOrElse(socket, null).setState(TCPState.LISTEN)) {
+      if (!boundedSocketHashMap.getOrElse(socket, null).setState(TCPState.LISTEN, TCPState.CLOSE)) {
         throw new ErrorTCPStateException
       }
     }
@@ -113,6 +102,17 @@ class TCP {
       conn.dstIP = addr
       conn.dstPort = port
       
+      //generate TCP segment
+      val newTCPSegment = new TCPSegment
+      val newTCPHead = new TCPHead
+      // initial tcp packet
+      newTCPHead.srcPort = conn.srcPort
+      newTCPHead.dstPort = conn.dstPort 
+      newTCPHead.seqNum = conn.seqNum
+      newTCPHead.syn = 1
+      newTCPHead.winSize = conn.recvBuf.getAvailable
+      
+      
     }
   }
 
@@ -135,4 +135,23 @@ class TCP {
   def virClose(socket: Int) {
 
   }
+  
+  
+  // Below are helper functions
+  def generatePortNumber(): Int = {
+    if (usedPortHashMap.size == portRightBound - portLeftBound + 1) {
+      -1
+    } else {
+      var result = new Random().nextInt(portRightBound + 1 - portLeftBound) + portLeftBound
+      while (!portArray.get(result)) {
+        if (result == portRightBound) {
+          result = portLeftBound
+        } else {
+          result += 1
+        }
+      }
+      result
+    }
+  }
+  
 }
