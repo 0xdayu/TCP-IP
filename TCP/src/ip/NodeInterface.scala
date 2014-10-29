@@ -216,22 +216,15 @@ class NodeInterface {
     }
   }
 
-  def generateAndSendPacket(dstVirtIp: String, proto: Int, data: Array[Byte]) {
+  def generateAndSendPacket(dstVirtIp: InetAddress, proto: Int, data: Array[Byte]) {
     // Check whether rip is in the routing table
     // lock
     routingTableLock.readLock.lock
-    var flag = false
-    try {
-      flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
-    } catch {
-      case _: Throwable =>
-        println("Invalid IP address")
-        return
-    }
+    val flag = routingTable.contains(dstVirtIp)
 
     if (!flag) {
       for (interface <- linkInterfaceArray) {
-        if (interface.getLocalIP == InetAddress.getByName(dstVirtIp)) {
+        if (interface.getLocalIP == dstVirtIp) {
           // local print
           if (interface.isUpOrDown) {
             if (proto == Data) {
@@ -257,7 +250,7 @@ class NodeInterface {
         if (data.length > DefaultMTU - DefaultHeadLength) {
           println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + data.length + DefaultHeadLength)
         } else {
-          generateIPPacket(InetAddress.getByName(dstVirtIp), proto, data, true)
+          generateIPPacket(dstVirtIp, proto, data, true)
         }
       } else {
         println("Unsupport Protocol: " + proto)

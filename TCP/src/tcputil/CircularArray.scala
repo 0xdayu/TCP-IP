@@ -16,18 +16,16 @@ class CircularArray(capacity: Int) {
 
   def isEmpty: Boolean = this.synchronized { size == 0 }
 
-  def write(buf: Array[Byte]): Boolean = {
+  def write(buf: Array[Byte]): Int = {
     this.synchronized {
-      if (buf.length > capacity - size) {
-        false
-      } else {
-        for (byte <- buf) {
-          buffer(write) = byte
-          write = (write + 1) / capacity
-        }
-        size += buf.length
-        true
+      val realSize = math.min(buf.size, capacity - size)
+      
+      for (i <- Range(0, realSize)) {
+        buffer(write) = buf(i)
+        write = (write + 1) % capacity
       }
+      size += realSize
+      realSize
     }
   }
 
@@ -35,9 +33,10 @@ class CircularArray(capacity: Int) {
     this.synchronized {
       val realSize = math.min(sizeBuf, size)
       val buf = new Array[Byte](realSize)
+      
       for (i <- Range(0, realSize)) {
-        buf(0) = buffer(read)
-        read = (read + 1) / capacity
+        buf(i) = buffer(read)
+        read = (read + 1) % capacity
       }
       size -= realSize
       buf

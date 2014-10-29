@@ -2,6 +2,7 @@ package driver
 
 import ip._
 import util._
+import java.net.InetAddress
 
 object node {
   val UsageCommand = "We only accept: [h]help, [li]interfaces, [lr]routes, " +
@@ -174,9 +175,15 @@ object node {
     if (arr.length != 3) {
       println(UsageCommand)
     } else if (arr(2).trim.forall(_.isDigit)) {
-      val ip = arr(1)
-      val port = arr(2).trim.toInt
-      // TODO
+      try {
+        val strIp = arr(1)
+        var ip = InetAddress.getByName(strIp)
+        val port = arr(2).trim.toInt
+        // TODO
+      } catch {
+        case _: Throwable =>
+          println("Invalid IP Address")
+      }
     } else {
       println("[c]connect <ip> <port>: input should be port number: " + arr(2).trim)
     }
@@ -186,11 +193,17 @@ object node {
     if (arr.length <= 3) {
       println(UsageCommand)
     } else if (arr(2).trim.forall(_.isDigit)) {
-      val dstVirtIp = arr(1)
-      val proto = arr(2).toInt
-      val len = line.indexOf(arr(2), line.indexOf(arr(1)) + arr(1).length) + 1 + arr(2).length
-      val data = line.getBytes().slice(len, line.length)
-      nodeInterface.generateAndSendPacket(dstVirtIp, proto, data)
+      try {
+        val dstVirtIp = arr(1)
+        val proto = arr(2).toInt
+        val len = line.indexOf(arr(2), line.indexOf(arr(1)) + arr(1).length) + 1 + arr(2).length
+        val data = line.getBytes().slice(len, line.length)
+        val ip = InetAddress.getByName(dstVirtIp)
+        nodeInterface.generateAndSendPacket(ip, proto, data)
+      } catch {
+        case _: Throwable =>
+          println("Invalid IP Address")
+      }
     } else {
       println("[si]sendip <ip> <proto> <data>: input should be proto number: " + arr(2).trim)
     }
@@ -229,10 +242,16 @@ object node {
     if (arr.length != 4) {
       println(UsageCommand)
     } else if (arr(3).trim.forall(_.isDigit)) {
-      val filename = arr(1)
-      val ip = arr(2)
-      val port = arr(3).toInt
-      // TODO
+      try {
+        val filename = arr(1)
+        val strIp = arr(2)
+        var ip = InetAddress.getByName(strIp)
+        val port = arr(3).trim.toInt
+        // TODO
+      } catch {
+        case _: Throwable =>
+          println("Invalid IP Address")
+      }
     } else {
       println("[sf]sendfile <filename> <ip> <port>: input should be port number: " + arr(3).trim)
     }
