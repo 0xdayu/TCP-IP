@@ -288,4 +288,14 @@ object Handler {
       }
     }
   }
+
+  def tcpHandler(packet: IPPacket, nodeInterface: NodeInterface) {
+    val sum = tcputil.TCPSum.tcpsum(packet)
+    if ((sum & 0xfff) != 0) {
+      println("This packet has wrong tcp checksum!")
+      return
+    }
+
+    // TODO
+  }
 }

@@ -32,6 +32,7 @@ object node {
     val hm = new HandlerManager(nodeInterface)
     hm.registerHandler(nodeInterface.Rip, Handler.ripHandler)
     hm.registerHandler(nodeInterface.Data, Handler.forwardHandler)
+    hm.registerHandler(nodeInterface.TCP, Handler.tcpHandler)
 
     val rece = new Receiving(nodeInterface)
     val send = new Sending(nodeInterface)

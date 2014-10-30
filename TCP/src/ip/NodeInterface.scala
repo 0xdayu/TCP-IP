@@ -10,6 +10,7 @@ import java.util.Timer
 class NodeInterface {
   val Rip = 200
   val Data = 0
+  val TCP = 6
   val DefaultVersion = 4
   val DefaultHeadLength = 20
   val DefaultMTU = 1400
@@ -100,7 +101,7 @@ class NodeInterface {
 
         if (packetFragmentationArray != null) {
           for (newPkt <- packetFragmentationArray) {
-            val headBuf: Array[Byte] = ConvertObject.headToByte(newPkt.head)
+            val headBuf: Array[Byte] = iputil.ConvertObject.headToByte(newPkt.head)
 
             // checksum remove
             headBuf(10) = 0
@@ -113,7 +114,7 @@ class NodeInterface {
             // fill checksum
             headBuf(10) = ((checkSum >> 8) & 0xff).asInstanceOf[Byte]
             headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
-
+            
             // Test
             if (newPkt.head.protocol == Data) {
               PrintIPPacket.printIPPacket(newPkt, false, false, false)
@@ -153,7 +154,7 @@ class NodeInterface {
       socket.receive(packet)
 
       // head first byte
-      val len = ConvertObject.headLen(maxBuf(0))
+      val len = iputil.ConvertObject.headLen(maxBuf(0))
 
       // head other bytes
       val headTotalBuf = maxBuf.slice(0, len)
@@ -161,12 +162,12 @@ class NodeInterface {
       // checksum valid
       val checkSum = IPSum ipsum headTotalBuf
       if ((checkSum & 0xfff) != 0) {
-        println("This packet has wrong checksum!")
+        println("This packet has wrong ip checksum!")
         return
       }
 
       // convert to IPHead
-      pkt.head = ConvertObject.byteToHead(headTotalBuf)
+      pkt.head = iputil.ConvertObject.byteToHead(headTotalBuf)
 
       // drop 
       if (pkt.head == null) {
@@ -227,8 +228,38 @@ class NodeInterface {
         if (interface.getLocalIP == dstVirtIp) {
           // local print
           if (interface.isUpOrDown) {
-            if (proto == Data) {
-              println("Local printing: " + new String(data.map(_.toChar)))
+            if (proto == Data || proto == TCP) {
+              val pkt = new IPPacket
+              pkt.payLoad = data
+
+              val head = new IPHead
+
+              head.versionAndIhl = ((DefaultVersion << 4) | (DefaultHeadLength / 4)).asInstanceOf[Short]
+              head.tos = 0
+              head.totlen = DefaultHeadLength + data.length
+              // only need final 16 bits: 0 ~ 65535
+              // for fragmentation
+              head.id = idCount
+
+              if (idCount == 65535) {
+                idCount = 0
+              } else {
+                idCount += 1
+              }
+
+              head.fragoff = 0
+              head.ttl = MaxTTL.asInstanceOf[Short]
+              head.protocol = proto.asInstanceOf[Short]
+              // send will update checksum
+              head.check = 0
+
+              head.saddr = interface.link.localVirtIP
+              head.daddr = interface.link.localVirtIP
+
+              pkt.head = head
+              
+              // directly to inbuffer without ip or tcp checksum
+              interface.inBuffer.bufferWrite(pkt)
             } else {
               println("Unsupport Protocol: " + proto)
             }
@@ -246,7 +277,7 @@ class NodeInterface {
       println("Destination Unreachable!")
     } else {
       // Check whether the protocol is test data
-      if (proto == Data) {
+      if (proto == Data || proto == TCP) {
         if (data.length > DefaultMTU - DefaultHeadLength) {
           println("Maximum Transfer Unit is " + DefaultMTU + ", but the packet size is " + data.length + DefaultHeadLength)
         } else {
@@ -263,12 +294,12 @@ class NodeInterface {
     rip.command = RIPRequest
     rip.numEntries = 0
     rip.entries = Array.empty
-    val userData = ConvertObject.RIPToByte(rip)
+    val userData = iputil.ConvertObject.RIPToByte(rip)
     generateIPPacket(virtIP, Rip, userData, false)
   }
 
   def ripResponse(virtIP: InetAddress, rip: RIP) {
-    val userData = ConvertObject.RIPToByte(rip)
+    val userData = iputil.ConvertObject.RIPToByte(rip)
     generateIPPacket(virtIP, Rip, userData, false)
   }
 
@@ -313,6 +344,14 @@ class NodeInterface {
 
               pkt.head = head
 
+              // add TCP checksum
+              if (proto == TCP) {
+                val sum = tcputil.TCPSum.tcpsum(pkt)
+                val segment = tcputil.ConvertObject.byteToTCPSegment(pkt.payLoad)
+                segment.head.checkSum = sum
+                pkt.payLoad = tcputil.ConvertObject.TCPSegmentToByte(segment)
+              }
+              
               if (interface.isUpOrDown) {
                 if (cost != RIPInifinity) {
                   interface.outBuffer.bufferWrite(pkt)

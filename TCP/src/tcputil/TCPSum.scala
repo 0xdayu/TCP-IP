@@ -6,7 +6,7 @@ import tcp.TCPHead
 import java.net.InetAddress
 
 object TCPSum {
-  def TCPSum(pkt: IPPacket): Int = {
+  def tcpsum(pkt: IPPacket): Int = {
     val pesudeHead = new Array[Byte](12)
 
     toByteAddr(pesudeHead, 0, pkt.head.saddr)
@@ -18,7 +18,7 @@ object TCPSum {
 
     (IPSum.ipsum(pesudeHead ++ pkt.payLoad) & 0xffff).asInstanceOf[Int]
   }
-
+  
   def toByteAddr(buf: Array[Byte], i: Int, addr: InetAddress) {
     var count = i
     for (b <- addr.getAddress()) {
