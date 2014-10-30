@@ -6,6 +6,7 @@ import java.net.InetAddress
 import scala.util.Random
 import scala.compat.Platform
 import tcputil.CircularArray
+import scala.actors.threadpool.locks.ReentrantLock
 
 class TCPConnection(s: Int, p: Int, fb: Int) {
 
@@ -14,6 +15,8 @@ class TCPConnection(s: Int, p: Int, fb: Int) {
   var state = TCPState.CLOSE
   var sendBuf: CircularArray = new CircularArray(fb)
   var recvBuf: CircularArray = new CircularArray(fb)
+  val sendBufLock = new ReentrantLock
+  val recvBufLock = new ReentrantLock
   // TODO: 
   //var slidingWinow: Array[Byte] = new Array[Byte](sw)
 

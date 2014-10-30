@@ -7,13 +7,15 @@ import java.util.BitSet
 import scala.collection.mutable.HashMap
 import scala.util.Random
 import scala.compat.Platform
+import scala.actors.threadpool.locks.ReentrantLock
 
-class TCP(nodeInterface: ip.NodeInterface) {
+class TCP{
   // file descriptor, 0 - input, 1 - output, 2 - error
   // start from 3 to 65535 (2^16 - 1) or less
 
   // TODO: need to be confirmed
   val DefaultFlowBuffSize = 4096
+  val DefaultMultiplexingBuffSize = 1024 * 1024 * 1024
 
   val socketLeftBound = 3
   val socketRightBound = 65535
@@ -27,6 +29,11 @@ class TCP(nodeInterface: ip.NodeInterface) {
   // port number, start from 1024 to 65535 (2^16 - 1)
   val portArray = new BitSet
   val usedPortHashMap = new HashMap[Int, TCPConnection]
+  
+  val multiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
+  val demultiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
+  val multiplexingLock = new ReentrantLock
+  val demultiplexingLock = new ReentrantLock
 
   def virSocket(): Int = {
     for (i <- Range(socketLeftBound, socketRightBound + 1)) {
@@ -94,17 +101,19 @@ class TCP(nodeInterface: ip.NodeInterface) {
     if (port < portLeftBound || port > portRightBound) {
       throw new InvalidPortException(port)
     } else {
+      // 1 of 3 3-way handshake
       val conn = boundedSocketHashMap.getOrElse(socket, null)
       conn.dstIP = addr
       conn.dstPort = port
 
-      //generate TCP segment
+      // generate TCP segment
       val newTCPSegment = new TCPSegment
       val newTCPHead = new TCPHead
       // initial tcp packet
       newTCPHead.srcPort = conn.srcPort
       newTCPHead.dstPort = conn.dstPort
       newTCPHead.seqNum = conn.seqNum
+      newTCPHead.dataOffset = ConvertObject.DefaultHeadLength 
       newTCPHead.syn = 1
       newTCPHead.winSize = conn.recvBuf.getAvailable
       // checksum will update later in the ip layer
@@ -112,7 +121,9 @@ class TCP(nodeInterface: ip.NodeInterface) {
       newTCPSegment.head = newTCPHead
       newTCPSegment.payLoad = new Array[Byte](0)
 
-      nodeInterface.generateAndSendPacket(addr, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(newTCPSegment))
+      //nodeInterface.generateAndSendPacket(addr, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(newTCPSegment))
+      // finish 1 of 3 3-way handshake
+      conn.setState(TCPState.SYN_SENT, TCPState.CLOSE)
     }
   }
 

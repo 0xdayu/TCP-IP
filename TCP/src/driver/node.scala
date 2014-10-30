@@ -3,6 +3,7 @@ package driver
 import ip._
 import util._
 import java.net.InetAddress
+import tcp._
 
 object node {
   val UsageCommand = "We only accept: [h]help, [li]interfaces, [lr]routes, " +
@@ -33,6 +34,10 @@ object node {
     hm.registerHandler(nodeInterface.Rip, Handler.ripHandler)
     hm.registerHandler(nodeInterface.Data, Handler.forwardHandler)
     hm.registerHandler(nodeInterface.TCP, Handler.tcpHandler)
+    
+    val tcp = new TCP
+    val multiplexingThread = new Multiplexing(nodeInterface, tcp)
+    val demultiplexingThread = new Demultiplexing(tcp)
 
     val rece = new Receiving(nodeInterface)
     val send = new Sending(nodeInterface)
