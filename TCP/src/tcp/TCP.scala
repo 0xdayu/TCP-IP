@@ -8,7 +8,7 @@ import scala.collection.mutable.HashMap
 import scala.util.Random
 import scala.compat.Platform
 
-class TCP {
+class TCP(nodeInterface: ip.NodeInterface) {
   // file descriptor, 0 - input, 1 - output, 2 - error
   // start from 3 to 65535 (2^16 - 1) or less
 
@@ -97,19 +97,22 @@ class TCP {
       val conn = boundedSocketHashMap.getOrElse(socket, null)
       conn.dstIP = addr
       conn.dstPort = port
-      
+
       //generate TCP segment
       val newTCPSegment = new TCPSegment
       val newTCPHead = new TCPHead
       // initial tcp packet
       newTCPHead.srcPort = conn.srcPort
-      newTCPHead.dstPort = conn.dstPort 
+      newTCPHead.dstPort = conn.dstPort
       newTCPHead.seqNum = conn.seqNum
       newTCPHead.syn = 1
       newTCPHead.winSize = conn.recvBuf.getAvailable
-      
-      
-      
+      // checksum will update later in the ip layer
+
+      newTCPSegment.head = newTCPHead
+      newTCPSegment.payLoad = new Array[Byte](0)
+
+      nodeInterface.generateAndSendPacket(addr, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(newTCPSegment))
     }
   }
 
@@ -132,8 +135,7 @@ class TCP {
   def virClose(socket: Int) {
 
   }
-  
-  
+
   // Below are helper functions
   def generatePortNumber(): Int = {
     if (usedPortHashMap.size == portRightBound - portLeftBound + 1) {
@@ -150,5 +152,5 @@ class TCP {
       result
     }
   }
-  
+
 }
