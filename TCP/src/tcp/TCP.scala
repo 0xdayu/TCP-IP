@@ -39,10 +39,6 @@ class TCP {
     throw new SocketUsedUpException
   }
 
-  
-  
-  def generateSequenceN
-
   def virBind(socket: Int, addr: InetAddress, port: Int) {
     // addr is not used in virBind
     // check whether socket has been asigned

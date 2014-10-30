@@ -3,7 +3,6 @@ package tcputil
 class CircularArray(capacity: Int) {
   val buffer = new Array[Byte](capacity)
   var read = 0 // next read
-  var write = 0 // next write
   var size = 0
 
   def getCapacity: Int = capacity
@@ -16,10 +15,11 @@ class CircularArray(capacity: Int) {
 
   def isEmpty: Boolean = this.synchronized { size == 0 }
 
-  def write(buf: Array[Byte]): Int = {
+  def write(start: Int, buf: Array[Byte]): Int = {
     this.synchronized {
+      var write = start
       val realSize = math.min(buf.size, capacity - size)
-      
+
       for (i <- Range(0, realSize)) {
         buffer(write) = buf(i)
         write = (write + 1) % capacity
@@ -33,7 +33,7 @@ class CircularArray(capacity: Int) {
     this.synchronized {
       val realSize = math.min(sizeBuf, size)
       val buf = new Array[Byte](realSize)
-      
+
       for (i <- Range(0, realSize)) {
         buf(i) = buffer(read)
         read = (read + 1) % capacity

@@ -10,11 +10,11 @@ object ConvertObject {
 
     val head = segment.head
 
-    buf(0) = ((head.sourcePort >> 8) & 0xff).asInstanceOf[Byte]
-    buf(1) = (head.sourcePort & 0xff).asInstanceOf[Byte]
+    buf(0) = ((head.srcPort >> 8) & 0xff).asInstanceOf[Byte]
+    buf(1) = (head.srcPort & 0xff).asInstanceOf[Byte]
 
-    buf(2) = ((head.destinationPort >> 8) & 0xff).asInstanceOf[Byte]
-    buf(3) = (head.destinationPort & 0xff).asInstanceOf[Byte]
+    buf(2) = ((head.dstPort >> 8) & 0xff).asInstanceOf[Byte]
+    buf(3) = (head.dstPort & 0xff).asInstanceOf[Byte]
 
     buf(4) = ((head.seqNum >> 24) & 0xff).asInstanceOf[Byte]
     buf(5) = ((head.seqNum >> 16) & 0xff).asInstanceOf[Byte]
@@ -54,8 +54,8 @@ object ConvertObject {
     }
 
     // Big-Endian
-    head.sourcePort = ((((buf(0) & 0xff) << 8) | (buf(1) & 0xff)) & 0xffff).asInstanceOf[Int]
-    head.destinationPort = ((((buf(2) & 0xff) << 8) | (buf(3) & 0xff)) & 0xffff).asInstanceOf[Int]
+    head.srcPort = ((((buf(0) & 0xff) << 8) | (buf(1) & 0xff)) & 0xffff).asInstanceOf[Int]
+    head.dstPort = ((((buf(2) & 0xff) << 8) | (buf(3) & 0xff)) & 0xffff).asInstanceOf[Int]
 
     head.seqNum = (((((buf(4) & 0xff) << 24 | (buf(5) & 0xff) << 16) | (buf(6) & 0xff) << 8) | (buf(7) & 0xff)) & 0xffffffff).asInstanceOf[Long]
     head.ackNum = (((((buf(8) & 0xff) << 24 | (buf(9) & 0xff) << 16) | (buf(10) & 0xff) << 8) | (buf(11) & 0xff)) & 0xffffffff).asInstanceOf[Long]
