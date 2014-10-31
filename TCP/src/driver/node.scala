@@ -13,6 +13,8 @@ object node {
     "[cl]close <socket>, [m]mtu <integer0> <integer1>, [q]quit"
 
   var nodeInterface: NodeInterface = _
+  
+  var tcp: TCP = _
 
   /**
    * 1. Input thread (main)
@@ -29,16 +31,24 @@ object node {
     nodeInterface = new NodeInterface
     nodeInterface.initSocketAndInterfaces(args(0))
 
+    // TCP
+    tcp = new TCP
+    val multiplexing = new Multiplexing(nodeInterface, tcp)
+    val demultiplexing = new Demultiplexing(tcp)
+
+    val multiThread = new Thread(multiplexing)
+    val demultiThread = new Thread(demultiplexing)
+
+    multiThread.start
+    demultiThread.start
+
     //register 200 and 0 protocol handler
-    val hm = new HandlerManager(nodeInterface)
+    val hm = new HandlerManager(nodeInterface, tcp)
     hm.registerHandler(nodeInterface.Rip, Handler.ripHandler)
     hm.registerHandler(nodeInterface.Data, Handler.forwardHandler)
     hm.registerHandler(nodeInterface.TCP, Handler.tcpHandler)
-    
-    val tcp = new TCP
-    val multiplexingThread = new Multiplexing(nodeInterface, tcp)
-    val demultiplexingThread = new Demultiplexing(tcp)
 
+    // IP
     val rece = new Receiving(nodeInterface)
     val send = new Sending(nodeInterface)
 
@@ -89,6 +99,8 @@ object node {
               rece.cancel
               hm.cancel
               send.cancel
+              multiplexing.cancel
+              demultiplexing.cancel
               println("Exit this node")
               sys.exit(0)
             }
@@ -140,7 +152,7 @@ object node {
     if (arr.length != 1) {
       println(UsageCommand)
     } else {
-      // TODO
+    	tcp.printSockets
     }
   }
 
@@ -185,7 +197,8 @@ object node {
         val strIp = arr(1)
         var ip = InetAddress.getByName(strIp)
         val port = arr(2).trim.toInt
-        // TODO
+        val vsocket = tcp.virSocket
+        tcp.virConnect(vsocket, ip, port)
       } catch {
         case _: Throwable =>
           println("Invalid IP Address")

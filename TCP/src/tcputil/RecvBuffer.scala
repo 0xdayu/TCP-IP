@@ -18,5 +18,5 @@ class RecvBuffer(capacity: Int) {
     }
     available += realSize
     buf
-  }
+    }
 }

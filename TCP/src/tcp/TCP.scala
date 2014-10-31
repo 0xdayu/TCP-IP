@@ -7,9 +7,8 @@ import java.util.BitSet
 import scala.collection.mutable.HashMap
 import scala.util.Random
 import scala.compat.Platform
-import scala.actors.threadpool.locks.ReentrantLock
 
-class TCP{
+class TCP {
   // file descriptor, 0 - input, 1 - output, 2 - error
   // start from 3 to 65535 (2^16 - 1) or less
 
@@ -29,11 +28,11 @@ class TCP{
   // port number, start from 1024 to 65535 (2^16 - 1)
   val portArray = new BitSet
   val usedPortHashMap = new HashMap[Int, TCPConnection]
-  
+
   val multiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
   val demultiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
-  val multiplexingLock = new ReentrantLock
-  val demultiplexingLock = new ReentrantLock
+  //val multiplexingLock = new ReentrantLock
+  //val demultiplexingLock = new ReentrantLock
 
   def virSocket(): Int = {
     for (i <- Range(socketLeftBound, socketRightBound + 1)) {
@@ -61,7 +60,7 @@ class TCP{
       throw new UsedPortException(port)
     } else {
       portArray.set(port)
-      val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize)
+      val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize, this.multiplexingBuff)
       boundedSocketHashMap.put(socket, newCon)
       usedPortHashMap.put(port, newCon)
     }
@@ -75,7 +74,7 @@ class TCP{
     } else if (!boundedSocketHashMap.contains(socket)) {
       throw new UnboundSocketException(socket)
     } else {
-      if (!boundedSocketHashMap.getOrElse(socket, null).setState(TCPState.LISTEN, TCPState.CLOSE)) {
+      if (!boundedSocketHashMap.getOrElse(socket, null).setState(TCPState.LISTEN)) {
         throw new ErrorTCPStateException
       }
     }
@@ -92,7 +91,7 @@ class TCP{
       if (portArray == -1) {
         throw new PortUsedUpException
       }
-      val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize)
+      val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize, this.multiplexingBuff)
       boundedSocketHashMap.put(socket, newCon)
       usedPortHashMap.put(portNumber, newCon)
     }
@@ -106,24 +105,15 @@ class TCP{
       conn.dstIP = addr
       conn.dstPort = port
 
-      // generate TCP segment
-      val newTCPSegment = new TCPSegment
-      val newTCPHead = new TCPHead
-      // initial tcp packet
-      newTCPHead.srcPort = conn.srcPort
-      newTCPHead.dstPort = conn.dstPort
-      newTCPHead.seqNum = conn.seqNum
-      newTCPHead.dataOffset = ConvertObject.DefaultHeadLength 
-      newTCPHead.syn = 1
-      newTCPHead.winSize = conn.recvBuf.getAvailable
-      // checksum will update later in the ip layer
-
-      newTCPSegment.head = newTCPHead
-      newTCPSegment.payLoad = new Array[Byte](0)
+      conn.generateAndSentFirstTCPSegment
 
       //nodeInterface.generateAndSendPacket(addr, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(newTCPSegment))
       // finish 1 of 3 3-way handshake
-      conn.setState(TCPState.SYN_SENT, TCPState.CLOSE)
+      conn.setState(TCPState.SYN_SENT)
+
+      while (conn.state != TCPState.ESTABLISHED) {
+      }
+      print("Established connection succesfully")
     }
   }
 
@@ -164,4 +154,9 @@ class TCP{
     }
   }
 
+  def printSockets() {
+    for (socket <- boundedSocketHashMap.keySet) {
+      println("Socket: " + socket + " Port: " + boundedSocketHashMap.getOrElse(socket, null).srcPort + "State: " + boundedSocketHashMap.getOrElse(socket, null).state)
+    }
+  }
 }

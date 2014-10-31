@@ -4,9 +4,10 @@ import iputil.{ PrintIPPacket, ConvertObject }
 import java.net.InetAddress
 import scala.collection.mutable.ArrayBuffer
 import scala.util.control.Breaks._
+import tcp.TCP
 
 object Handler {
-  def forwardHandler(packet: IPPacket, nodeInterface: NodeInterface) {
+  def forwardHandler(packet: IPPacket, nodeInterface: NodeInterface, tcp: TCP) {
     val dstIpAddr = packet.head.daddr
 
     // println("TTL: "+packet.head.ttl)
@@ -59,7 +60,7 @@ object Handler {
     }
   }
 
-  def ripHandler(packet: IPPacket, nodeInterface: NodeInterface) {
+  def ripHandler(packet: IPPacket, nodeInterface: NodeInterface, tcp: TCP) {
     // All response have added poison reverse
     // 1.Response request: response all routing table
     // 2.Period updates (5 sec): response all routing table
@@ -289,13 +290,15 @@ object Handler {
     }
   }
 
-  def tcpHandler(packet: IPPacket, nodeInterface: NodeInterface) {
+  def tcpHandler(packet: IPPacket, nodeInterface: NodeInterface, tcp: TCP) {
     val sum = tcputil.TCPSum.tcpsum(packet)
     if ((sum & 0xfff) != 0) {
       println("This packet has wrong tcp checksum!")
       return
     }
-
-    // TODO
+    
+    val seg = tcputil.ConvertObject.byteToTCPSegment(packet.payLoad) 
+    
+    tcp.demultiplexingBuff.bufferWrite(seg)
   }
 }
