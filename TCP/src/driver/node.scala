@@ -13,7 +13,7 @@ object node {
     "[cl]close <socket>, [m]mtu <integer0> <integer1>, [q]quit"
 
   var nodeInterface: NodeInterface = _
-  
+
   var tcp: TCP = _
 
   /**
@@ -152,7 +152,7 @@ object node {
     if (arr.length != 1) {
       println(UsageCommand)
     } else {
-    	tcp.printSockets
+      tcp.printSockets
     }
   }
 

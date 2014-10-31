@@ -38,7 +38,7 @@ class TCP {
     for (i <- Range(socketLeftBound, socketRightBound + 1)) {
       if (!socketArray.get(i)) {
         socketArray.set(i)
-        i
+        return i
       }
     }
 
