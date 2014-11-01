@@ -6,12 +6,14 @@ import java.net.InetAddress
 import scala.util.Random
 import scala.compat.Platform
 import scala.collection.mutable.LinkedHashMap
+import scala.actors.threadpool.locks.ReentrantReadWriteLock
 
 class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
 
   var socket: Int = s
 
   var state = TCPState.CLOSE
+  val stateLock = new ReentrantReadWriteLock
 
   var sendBuf: SendBuffer = new SendBuffer(fb)
   var recvBuf: RecvBuffer = new RecvBuffer(fb)
@@ -24,7 +26,7 @@ class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
   var dstIP: InetAddress = _
   var dstPort: Int = _
 
-  var seqNum: Long = new Random(Platform.currentTime).nextLong() % math.pow(2, 32).asInstanceOf[Long]
+  var seqNum: Long = (math.abs(new Random(Platform.currentTime).nextLong()) % math.pow(2, 32).asInstanceOf[Long]).asInstanceOf[Long]
   var ackNum: Long = _
 
   val pendingQueue = new LinkedHashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
@@ -58,20 +60,31 @@ class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
   nextState.put(TCPState.LAST_ACK, Array(TCPState.CLOSE))
 
   def setState(next: TCPState.Value): Boolean = {
+    var ret = false
+    stateLock.writeLock.lock
     if (nextState.getOrElse(state, null).contains(next)) {
       state = next
-      true
+      ret = true
     } else {
-      false
+      ret = false
     }
+    stateLock.writeLock.unlock
+    ret
+  }
+
+  def getState(): TCPState.Value = {
+    stateLock.readLock.lock
+    val current = state
+    stateLock.readLock.unlock
+    current
   }
 
   def increaseSeqNumber(a: Int) = {
-    seqNum = (seqNum + a) % math.pow(2, 32).asInstanceOf[Long]
+    seqNum = (seqNum + a.asInstanceOf[Long]) % math.pow(2, 32).asInstanceOf[Long]
   }
 
   def increaseAckNumber(a: Int) = {
-    ackNum = (ackNum + a) % math.pow(2, 32).asInstanceOf[Long]
+    ackNum = (ackNum + a.asInstanceOf[Long]) % math.pow(2, 32).asInstanceOf[Long]
   }
 
   def isServerAndListen(): Boolean = {
@@ -86,6 +99,7 @@ class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
     newTCPHead.srcPort = this.srcPort
     newTCPHead.dstPort = this.dstPort
     newTCPHead.seqNum = this.seqNum
+    increaseSeqNumber(1)
     newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
     newTCPHead.syn = 1
     newTCPHead.winSize = this.recvBuf.available
@@ -111,6 +125,7 @@ class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
     // checksum will update later in the ip layer
 
     newTCPSegment.head = newTCPHead
+    newTCPSegment.payLoad = new Array[Byte](0)
     newTCPSegment
   }
 
@@ -126,6 +141,7 @@ class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
     newTCPHead.winSize = this.recvBuf.available
     val newTCPSegment = new TCPSegment
     newTCPSegment.head = newTCPHead
+    newTCPSegment.payLoad = new Array[Byte](0)
     newTCPSegment
   }
 
@@ -140,6 +156,8 @@ class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
           this.setState(TCPState.ESTABLISHED)
 
           // TODO : Add payload
+          this.ackNum = seg.head.seqNum
+
           val ackSeg = replyTCPSegment(seg)
           ackSeg.head.ack = 1
 

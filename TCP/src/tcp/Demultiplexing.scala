@@ -1,6 +1,7 @@
 package tcp
 
 import scala.actors.threadpool.Executors
+import tcputil._
 
 class Demultiplexing(tcp: TCP) extends Runnable {
   var done = true
@@ -8,10 +9,12 @@ class Demultiplexing(tcp: TCP) extends Runnable {
   val executors = Executors.newCachedThreadPool()
 
   def run() {
-    //will repeat until the thread ends
+    // will repeat until the thread ends
     while (done) {
       val tuple = tcp.demultiplexingBuff.bufferRead
       if (tuple != null) {
+        // PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
+
         val seg = tuple._3
         val client = tcp.clientHashMap.getOrElse((tuple._2, seg.head.dstPort, tuple._1, seg.head.srcPort), null)
         if (client == null) {

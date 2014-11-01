@@ -183,7 +183,15 @@ object node {
       println(UsageCommand)
     } else if (arr(1).trim.forall(_.isDigit)) {
       val port = arr(1).trim.toInt
-      //TODO
+      try {
+        val vsocket = tcp.virSocket
+        tcp.virBind(vsocket, null, port)
+        tcp.virListen(vsocket)
+
+        new Thread(new TCPAccept(tcp, vsocket)).start
+      } catch {
+        case e: Exception => println(e.getMessage)
+      }
     } else {
       println("[a]accept <port>: input should be port number: " + arr(1).trim)
     }
@@ -197,8 +205,12 @@ object node {
         val strIp = arr(1)
         var ip = InetAddress.getByName(strIp)
         val port = arr(2).trim.toInt
-        val vsocket = tcp.virSocket
-        tcp.virConnect(vsocket, ip, port)
+        try {
+          val vsocket = tcp.virSocket
+          tcp.virConnect(vsocket, ip, port)
+        } catch {
+          case e: Exception => println(e.getMessage)
+        }
       } catch {
         case _: Throwable =>
           println("Invalid IP Address")

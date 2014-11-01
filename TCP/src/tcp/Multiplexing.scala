@@ -2,6 +2,7 @@ package tcp
 
 import ip.NodeInterface
 import tcputil.ConvertObject
+import tcputil.PrintTCPSegment
 
 class Multiplexing(nodeInterface: NodeInterface, tcp: TCP) extends Runnable {
   var done = true
@@ -11,6 +12,7 @@ class Multiplexing(nodeInterface: NodeInterface, tcp: TCP) extends Runnable {
     while (done) {
       val tuple = tcp.multiplexingBuff.bufferRead
       if (tuple != null) {
+        // PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
         nodeInterface.generateAndSendPacket(tuple._2, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(tuple._3))
       }
     }
@@ -19,5 +21,4 @@ class Multiplexing(nodeInterface: NodeInterface, tcp: TCP) extends Runnable {
   def cancel() {
     done = false
   }
-
 }

@@ -120,9 +120,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
       // finish 1 of 3 3-way handshake
       conn.setState(TCPState.SYN_SENT)
 
-      while (conn.state != TCPState.ESTABLISHED) {
+      while (conn.getState != TCPState.ESTABLISHED) {
+        ;
       }
-      print("Established connection succesfully")
+      println("Established connection succesfully")
     }
   }
 
@@ -137,25 +138,29 @@ class TCP(nodeInterface: ip.NodeInterface) {
     } else {
       // remove from queue
       val conn = boundedSocketHashMap.getOrElse(socket, null)
-      val (tuple, newConn) = conn.pendingQueue.head
-      conn.pendingQueue.remove(tuple)
+      if (!conn.pendingQueue.isEmpty) {
+        val (tuple, newConn) = conn.pendingQueue.head
+        conn.pendingQueue.remove(tuple)
 
-      // assign new socket
-      val newSocket = virSocket()
-      newConn.socket = newSocket
+        // assign new socket
+        val newSocket = virSocket()
+        newConn.socket = newSocket
 
-      // put into map
-      boundedSocketHashMap.put(newSocket, newConn)
-      clientHashMap.put(tuple, newConn)
+        // put into map
+        boundedSocketHashMap.put(newSocket, newConn)
+        clientHashMap.put(tuple, newConn)
 
-      newConn.setState(TCPState.SYN_RECV)
-      val seg = newConn.generateTCPSegment
+        newConn.setState(TCPState.SYN_RECV)
+        val seg = newConn.generateTCPSegment
 
-      seg.head.syn = 1
-      seg.head.ack = 1
-      multiplexingBuff.bufferWrite(newConn.srcIP, newConn.dstIP, seg)
+        seg.head.syn = 1
+        seg.head.ack = 1
+        multiplexingBuff.bufferWrite(newConn.srcIP, newConn.dstIP, seg)
 
-      (newSocket, conn.dstPort, conn.dstIP)
+        (newSocket, conn.dstPort, conn.dstIP)
+      } else {
+        null
+      }
     }
   }
 
@@ -179,7 +184,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   def generatePortNumber(): Int = {
     var i = 0
     var result = new Random().nextInt(portRightBound + 1 - portLeftBound) + portLeftBound
-    while (!portArray.get(result)) {
+    while (portArray.get(result)) {
       if (result == portRightBound) {
         result = portLeftBound
       } else {
@@ -195,7 +200,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
   def printSockets() {
     for (socket <- boundedSocketHashMap.keySet) {
-      println("Socket: " + socket + " Port: " + boundedSocketHashMap.getOrElse(socket, null).srcPort + "State: " + boundedSocketHashMap.getOrElse(socket, null).state)
+      println("Socket: " + socket + " Port: " + boundedSocketHashMap.getOrElse(socket, null).srcPort + " State: " + boundedSocketHashMap.getOrElse(socket, null).getState)
     }
   }
 }

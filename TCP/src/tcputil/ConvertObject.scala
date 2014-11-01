@@ -26,8 +26,8 @@ object ConvertObject {
     buf(10) = ((head.ackNum >> 8) & 0xff).asInstanceOf[Byte]
     buf(11) = (head.ackNum & 0xff).asInstanceOf[Byte]
 
-    buf(12) = (((((head.dataOffset / 4) << 4) & 0xf) | (head.ns & 1)) & 0xff).asInstanceOf[Byte]
-    buf(13) = (((head.cwr << 8) | (head.ece << 7) | (head.urg << 6) | (head.ack << 5) | (head.psh << 4) | (head.rst << 3) | (head.syn << 2) | head.fin) & 0xff).asInstanceOf[Byte]
+    buf(12) = (((((head.dataOffset / 4) << 4) & 0xf0) | (head.ns & 1)) & 0xff).asInstanceOf[Byte]
+    buf(13) = (((head.cwr << 7) | (head.ece << 6) | (head.urg << 5) | (head.ack << 4) | (head.psh << 3) | (head.rst << 2) | (head.syn << 1) | head.fin) & 0xff).asInstanceOf[Byte]
 
     buf(14) = ((head.winSize >> 8) & 0xff).asInstanceOf[Byte]
     buf(15) = (head.winSize & 0xff).asInstanceOf[Byte]
@@ -57,8 +57,8 @@ object ConvertObject {
     head.srcPort = ((((buf(0) & 0xff) << 8) | (buf(1) & 0xff)) & 0xffff).asInstanceOf[Int]
     head.dstPort = ((((buf(2) & 0xff) << 8) | (buf(3) & 0xff)) & 0xffff).asInstanceOf[Int]
 
-    head.seqNum = (((((buf(4) & 0xff) << 24 | (buf(5) & 0xff) << 16) | (buf(6) & 0xff) << 8) | (buf(7) & 0xff)) & 0xffffffff).asInstanceOf[Long]
-    head.ackNum = (((((buf(8) & 0xff) << 24 | (buf(9) & 0xff) << 16) | (buf(10) & 0xff) << 8) | (buf(11) & 0xff)) & 0xffffffff).asInstanceOf[Long]
+    head.seqNum = (((((buf(4) & 0xff).asInstanceOf[Long] << 24 | (buf(5) & 0xff).asInstanceOf[Long] << 16) | (buf(6) & 0xff).asInstanceOf[Long] << 8) | (buf(7).asInstanceOf[Long] & 0xff)) & 0xffffffff).asInstanceOf[Long]
+    head.ackNum = (((((buf(8) & 0xff).asInstanceOf[Long] << 24 | (buf(9) & 0xff).asInstanceOf[Long] << 16) | (buf(10) & 0xff).asInstanceOf[Long] << 8) | (buf(11).asInstanceOf[Long] & 0xff)) & 0xffffffff).asInstanceOf[Long]
 
     head.dataOffset = ((buf(12) >> 4) & 0xf).asInstanceOf[Int] * 4
 
