@@ -9,10 +9,9 @@ class Multiplexing(nodeInterface: NodeInterface, tcp: TCP) extends Runnable {
   def run() {
     //will repeat until the thread ends
     while (done) {
-      val seg = tcp.multiplexingBuff.bufferRead
-      if (seg != null) {
-        val conn = tcp.usedPortHashMap.getOrElse(seg.head.srcPort, null)
-        nodeInterface.generateAndSendPacket(conn.dstIP, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(seg))
+      val tuple = tcp.multiplexingBuff.bufferRead
+      if (tuple != null) {
+        nodeInterface.generateAndSendPacket(tuple._2, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(tuple._3))
       }
     }
   }

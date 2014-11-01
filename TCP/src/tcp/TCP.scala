@@ -22,17 +22,17 @@ class TCP {
   val portLeftBound = 1024
   val portRightBound = 65535
 
+  // one socket to one connection
   val socketArray = new BitSet
   val boundedSocketHashMap = new HashMap[Int, TCPConnection]
 
   // port number, start from 1024 to 65535 (2^16 - 1)
-  val portArray = new BitSet
-  val usedPortHashMap = new HashMap[Int, TCPConnection]
+  // one port to many sockets]
+  // [port, (main socketid, (srcIP, srcPort, dstIP, dstPort))]
+  val usedPortHashMap = new HashMap[Int, (Int, HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection])]
 
   val multiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
   val demultiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
-  //val multiplexingLock = new ReentrantLock
-  //val demultiplexingLock = new ReentrantLock
 
   def virSocket(): Int = {
     for (i <- Range(socketLeftBound, socketRightBound + 1)) {
@@ -56,13 +56,12 @@ class TCP {
       throw new BoundedSocketException(socket)
     } else if (port < portLeftBound || port > portRightBound) {
       throw new InvalidPortException(port)
-    } else if (portArray.get(port)) {
+    } else if (usedPortHashMap.contains(port)) {
       throw new UsedPortException(port)
     } else {
-      portArray.set(port)
       val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize, this.multiplexingBuff)
       boundedSocketHashMap.put(socket, newCon)
-      usedPortHashMap.put(port, newCon)
+      usedPortHashMap.put(port, (socket, new HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]))
     }
   }
 
@@ -87,13 +86,12 @@ class TCP {
       throw new UninitialSocketException(socket)
     } else if (!boundedSocketHashMap.contains(socket)) {
       val portNumber = generatePortNumber
-      portArray.set(portNumber)
-      if (portArray == -1) {
+      if (portNumber == -1) {
         throw new PortUsedUpException
       }
       val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize, this.multiplexingBuff)
       boundedSocketHashMap.put(socket, newCon)
-      usedPortHashMap.put(portNumber, newCon)
+      usedPortHashMap.put(port, (socket, new HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]))
     }
 
     // initial all parameters for the TCP connection
@@ -143,7 +141,7 @@ class TCP {
       -1
     } else {
       var result = new Random().nextInt(portRightBound + 1 - portLeftBound) + portLeftBound
-      while (!portArray.get(result)) {
+      while (!usedPortHashMap.contains(result)) {
         if (result == portRightBound) {
           result = portLeftBound
         } else {

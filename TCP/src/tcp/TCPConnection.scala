@@ -65,6 +65,10 @@ class TCPConnection(s: Int, p: Int, fb: Int, multiplexingBuff: FIFOBuffer) {
     ackNum = (ackNum + a) % math.pow(2, 32).asInstanceOf[Long]
   }
 
+  def isServerAndListen(): Boolean = {
+    state == TCPState.LISTEN
+  }
+
   def generateAndSentFirstTCPSegment() {
     // generate TCP segment
     val newTCPSegment = new TCPSegment
@@ -89,7 +93,7 @@ class TCPConnection(s: Int, p: Int, fb: Int, multiplexingBuff: FIFOBuffer) {
     newTCPHead.dstPort = seg.head.srcPort
     newTCPHead.seqNum = this.seqNum
     increaseSeqNumber(payload.length + 1)
-    increaseAckNumber(payload.length + 1)
+    increaseAckNumber(seg.payLoad.length + 1)
     newTCPHead.ackNum = this.ackNum
     newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
     newTCPHead.winSize = this.recvBuf.available

@@ -114,7 +114,7 @@ class NodeInterface {
             // fill checksum
             headBuf(10) = ((checkSum >> 8) & 0xff).asInstanceOf[Byte]
             headBuf(11) = (checkSum & 0xff).asInstanceOf[Byte]
-            
+
             // Test
             if (newPkt.head.protocol == Data) {
               PrintIPPacket.printIPPacket(newPkt, false, false, false)
@@ -257,7 +257,7 @@ class NodeInterface {
               head.daddr = interface.link.localVirtIP
 
               pkt.head = head
-              
+
               // directly to inbuffer without ip or tcp checksum
               interface.inBuffer.bufferWrite(pkt)
             } else {
@@ -351,7 +351,7 @@ class NodeInterface {
                 segment.head.checkSum = sum
                 pkt.payLoad = tcputil.ConvertObject.TCPSegmentToByte(segment)
               }
-              
+
               if (interface.isUpOrDown) {
                 if (cost != RIPInifinity) {
                   interface.outBuffer.bufferWrite(pkt)
@@ -444,6 +444,20 @@ class NodeInterface {
       }
     } else {
       println("No such interface: " + num)
+    }
+  }
+
+  // get ip src address depending on dst address
+  def getSrcAddr(dst: InetAddress): InetAddress = {
+    // lock
+    routingTableLock.readLock.lock
+    val nextHop = routingTable.getOrElse(dst, null)._2
+    routingTableLock.readLock.unlock
+    
+    if (nextHop != null) {
+      virtAddrToInterface.getOrElse(nextHop, null).link.localVirtIP
+    } else {
+      null
     }
   }
 }

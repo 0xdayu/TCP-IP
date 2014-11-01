@@ -296,9 +296,9 @@ object Handler {
       println("This packet has wrong tcp checksum!")
       return
     }
-    
-    val seg = tcputil.ConvertObject.byteToTCPSegment(packet.payLoad) 
-    
-    tcp.demultiplexingBuff.bufferWrite(seg)
+
+    val seg = tcputil.ConvertObject.byteToTCPSegment(packet.payLoad)
+
+    tcp.demultiplexingBuff.bufferWrite(packet.head.saddr, packet.head.daddr, seg)
   }
 }
