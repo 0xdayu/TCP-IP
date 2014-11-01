@@ -12,18 +12,22 @@ class Demultiplexing(tcp: TCP) extends Runnable {
     while (done) {
       val tuple = tcp.demultiplexingBuff.bufferRead
       if (tuple != null) {
-        val socketAndMap = tcp.usedPortHashMap.getOrElse(tuple._3.head.dstPort, null)
-        if (socketAndMap == null) {
-          // send rst back
-          generateRSTSegment(tuple._3)
-        } else {
-          val conn = tcp.boundedSocketHashMap.getOrElse(socketAndMap._1, null)
-          if (!conn.isServerAndListen) {
-            // not listen server
-            executors.execute(new ReceivedTCPSegmentHandler(conn, tuple._3))
+        val seg = tuple._3
+        val client = tcp.clientHashMap.getOrElse((tuple._2, seg.head.dstPort, tuple._1, seg.head.srcPort), null)
+        if (client == null) {
+          // maybe server
+          val server = tcp.serverHashMap.getOrElse(seg.head.dstPort, null)
+          if (server == null) {
+            // send rst back
+            generateRSTSegment(tuple._3)
           } else {
-            
+            if (server.isServerAndListen) {
+              executors.execute(new ReceivedTCPSegmentHandler(server, tuple._1, tuple._2, seg))
+            }
           }
+        } else {
+          // must be client
+          executors.execute(new ReceivedTCPSegmentHandler(client, tuple._1, tuple._2, seg))
         }
       }
     }

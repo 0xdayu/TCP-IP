@@ -5,20 +5,29 @@ import scala.collection.mutable.HashMap
 import java.net.InetAddress
 import scala.util.Random
 import scala.compat.Platform
+import scala.collection.mutable.LinkedHashMap
 
-class TCPConnection(s: Int, p: Int, fb: Int, multiplexingBuff: FIFOBuffer) {
+class TCPConnection(s: Int, p: Int, fb: Int, tcp: TCP) {
 
-  var srcSocket: Int = s
-  var srcPort: Int = p
+  var socket: Int = s
+
   var state = TCPState.CLOSE
+
   var sendBuf: SendBuffer = new SendBuffer(fb)
   var recvBuf: RecvBuffer = new RecvBuffer(fb)
 
+  // src
+  var srcIP: InetAddress = _
+  var srcPort: Int = p
+
+  // dst
   var dstIP: InetAddress = _
   var dstPort: Int = _
 
   var seqNum: Long = new Random(Platform.currentTime).nextLong() % math.pow(2, 32).asInstanceOf[Long]
   var ackNum: Long = _
+
+  val pendingQueue = new LinkedHashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
 
   val previousState = new HashMap[TCPState.Value, Array[TCPState.Value]]
   val nextState = new HashMap[TCPState.Value, Array[TCPState.Value]]
@@ -84,27 +93,44 @@ class TCPConnection(s: Int, p: Int, fb: Int, multiplexingBuff: FIFOBuffer) {
 
     newTCPSegment.head = newTCPHead
     newTCPSegment.payLoad = new Array[Byte](0)
-    this.multiplexingBuff.bufferWrite(newTCPSegment)
+    tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newTCPSegment)
   }
 
-  def generateTCPSegment(seg: TCPSegment, payload: Array[Byte] = new Array[Byte](0)): TCPSegment = {
+  def generateTCPSegment(): TCPSegment = {
+    val newTCPSegment = new TCPSegment
+    val newTCPHead = new TCPHead
+    // initial tcp packet
+    newTCPHead.srcPort = this.srcPort
+    newTCPHead.dstPort = this.dstPort
+    newTCPHead.seqNum = this.seqNum
+    increaseSeqNumber(1)
+    increaseAckNumber(1)
+    newTCPHead.ackNum = this.ackNum
+    newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
+    newTCPHead.winSize = this.recvBuf.available
+    // checksum will update later in the ip layer
+
+    newTCPSegment.head = newTCPHead
+    newTCPSegment
+  }
+
+  def replyTCPSegment(seg: TCPSegment): TCPSegment = {
     val newTCPHead = new TCPHead
     newTCPHead.srcPort = seg.head.dstPort
     newTCPHead.dstPort = seg.head.srcPort
     newTCPHead.seqNum = this.seqNum
-    increaseSeqNumber(payload.length + 1)
-    increaseAckNumber(seg.payLoad.length + 1)
+    increaseSeqNumber(1)
+    increaseAckNumber(1)
     newTCPHead.ackNum = this.ackNum
     newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
     newTCPHead.winSize = this.recvBuf.available
     val newTCPSegment = new TCPSegment
     newTCPSegment.head = newTCPHead
-    newTCPSegment.payLoad = payload
     newTCPSegment
   }
 
   // based on current state, expect proper segment and behave based on state machine
-  def connectionBehavior(seg: TCPSegment) {
+  def connectionBehavior(srcip: InetAddress, dstip: InetAddress, seg: TCPSegment) {
     state match {
       case TCPState.CLOSE =>
       case TCPState.ESTABLISHED =>
@@ -114,10 +140,10 @@ class TCPConnection(s: Int, p: Int, fb: Int, multiplexingBuff: FIFOBuffer) {
           this.setState(TCPState.ESTABLISHED)
 
           // TODO : Add payload
-          val ackSeg = generateTCPSegment(seg)
+          val ackSeg = replyTCPSegment(seg)
           ackSeg.head.ack = 1
 
-          multiplexingBuff.bufferWrite(ackSeg)
+          tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
         }
       case TCPState.SYN_RECV =>
         if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum) {
@@ -132,15 +158,18 @@ class TCPConnection(s: Int, p: Int, fb: Int, multiplexingBuff: FIFOBuffer) {
       case TCPState.LAST_ACK =>
       case TCPState.LISTEN =>
         if (seg.head.syn == 1) {
-          // 2 of 3 handshakes
-          this.setState(TCPState.SYN_RECV)
-          this.ackNum = seg.head.seqNum
+          if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort))) {
+            val conn = new TCPConnection(-1, seg.head.dstPort, tcp.DefaultFlowBuffSize, tcp)
+            conn.dstIP = srcip
+            conn.dstPort = seg.head.srcPort
+            conn.srcIP = dstip
 
-          val newTCPSeg = generateTCPSegment(seg)
-          newTCPSeg.head.syn = 1
-          newTCPSeg.head.ack = 1
+            conn.ackNum = seg.head.seqNum
 
-          multiplexingBuff.bufferWrite(newTCPSeg)
+            conn.setState(TCPState.LISTEN)
+
+            pendingQueue.put((dstip, seg.head.dstPort, srcip, seg.head.srcPort), conn)
+          } // ignore for else
         }
       case TCPState.CLOSING =>
       //case _ => throw new UnknownTCPStateException

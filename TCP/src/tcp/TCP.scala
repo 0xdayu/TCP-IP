@@ -8,7 +8,7 @@ import scala.collection.mutable.HashMap
 import scala.util.Random
 import scala.compat.Platform
 
-class TCP {
+class TCP(nodeInterface: ip.NodeInterface) {
   // file descriptor, 0 - input, 1 - output, 2 - error
   // start from 3 to 65535 (2^16 - 1) or less
 
@@ -27,9 +27,12 @@ class TCP {
   val boundedSocketHashMap = new HashMap[Int, TCPConnection]
 
   // port number, start from 1024 to 65535 (2^16 - 1)
-  // one port to many sockets]
-  // [port, (main socketid, (srcIP, srcPort, dstIP, dstPort))]
-  val usedPortHashMap = new HashMap[Int, (Int, HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection])]
+  val portArray = new BitSet
+
+  // port -> connection
+  // (srcip, srcport, dstip, dstport) -> connection
+  val serverHashMap = new HashMap[Int, TCPConnection]
+  val clientHashMap = new HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
 
   val multiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
   val demultiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
@@ -56,12 +59,11 @@ class TCP {
       throw new BoundedSocketException(socket)
     } else if (port < portLeftBound || port > portRightBound) {
       throw new InvalidPortException(port)
-    } else if (usedPortHashMap.contains(port)) {
+    } else if (portArray.get(port)) {
       throw new UsedPortException(port)
     } else {
-      val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize, this.multiplexingBuff)
+      val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize, this)
       boundedSocketHashMap.put(socket, newCon)
-      usedPortHashMap.put(port, (socket, new HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]))
     }
   }
 
@@ -73,8 +75,11 @@ class TCP {
     } else if (!boundedSocketHashMap.contains(socket)) {
       throw new UnboundSocketException(socket)
     } else {
-      if (!boundedSocketHashMap.getOrElse(socket, null).setState(TCPState.LISTEN)) {
+      val conn = boundedSocketHashMap.getOrElse(socket, null)
+      if (!conn.setState(TCPState.LISTEN)) {
         throw new ErrorTCPStateException
+      } else {
+        serverHashMap.put(conn.srcPort, conn)
       }
     }
   }
@@ -85,13 +90,13 @@ class TCP {
     } else if (!socketArray.get(socket)) {
       throw new UninitialSocketException(socket)
     } else if (!boundedSocketHashMap.contains(socket)) {
+      // no this socket and randomly generate
       val portNumber = generatePortNumber
       if (portNumber == -1) {
         throw new PortUsedUpException
       }
-      val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize, this.multiplexingBuff)
+      val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize, this)
       boundedSocketHashMap.put(socket, newCon)
-      usedPortHashMap.put(port, (socket, new HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]))
     }
 
     // initial all parameters for the TCP connection
@@ -100,12 +105,18 @@ class TCP {
     } else {
       // 1 of 3 3-way handshake
       val conn = boundedSocketHashMap.getOrElse(socket, null)
+      val ip = nodeInterface.getSrcAddr(addr)
+      if (ip == null) {
+        throw new DestinationUnreachable(addr)
+      }
+      conn.srcIP = ip
       conn.dstIP = addr
       conn.dstPort = port
 
+      clientHashMap.put((conn.srcIP, conn.srcPort, conn.dstIP, conn.dstPort), conn)
+
       conn.generateAndSentFirstTCPSegment
 
-      //nodeInterface.generateAndSendPacket(addr, nodeInterface.TCP, ConvertObject.TCPSegmentToByte(newTCPSegment))
       // finish 1 of 3 3-way handshake
       conn.setState(TCPState.SYN_SENT)
 
@@ -115,8 +126,37 @@ class TCP {
     }
   }
 
-  def virAccept(socket: Int): TCPConnection = {
-    null
+  // return (socket, dstport, dstip)
+  def virAccept(socket: Int): (Int, Int, InetAddress) = {
+    if (socket < socketLeftBound || socket > socketRightBound) {
+      throw new InvalidSocketException(socket)
+    } else if (!socketArray.get(socket)) {
+      throw new UninitialSocketException(socket)
+    } else if (!boundedSocketHashMap.contains(socket)) {
+      throw new UnboundSocketException(socket)
+    } else {
+      // remove from queue
+      val conn = boundedSocketHashMap.getOrElse(socket, null)
+      val (tuple, newConn) = conn.pendingQueue.head
+      conn.pendingQueue.remove(tuple)
+
+      // assign new socket
+      val newSocket = virSocket()
+      newConn.socket = newSocket
+
+      // put into map
+      boundedSocketHashMap.put(newSocket, newConn)
+      clientHashMap.put(tuple, newConn)
+
+      newConn.setState(TCPState.SYN_RECV)
+      val seg = newConn.generateTCPSegment
+
+      seg.head.syn = 1
+      seg.head.ack = 1
+      multiplexingBuff.bufferWrite(newConn.srcIP, newConn.dstIP, seg)
+
+      (newSocket, conn.dstPort, conn.dstIP)
+    }
   }
 
   def virRead(socket: Int): Array[Byte] = {
@@ -137,19 +177,20 @@ class TCP {
 
   // Below are helper functions
   def generatePortNumber(): Int = {
-    if (usedPortHashMap.size == portRightBound - portLeftBound + 1) {
-      -1
-    } else {
-      var result = new Random().nextInt(portRightBound + 1 - portLeftBound) + portLeftBound
-      while (!usedPortHashMap.contains(result)) {
-        if (result == portRightBound) {
-          result = portLeftBound
-        } else {
-          result += 1
-        }
+    var i = 0
+    var result = new Random().nextInt(portRightBound + 1 - portLeftBound) + portLeftBound
+    while (!portArray.get(result)) {
+      if (result == portRightBound) {
+        result = portLeftBound
+      } else {
+        result += 1
       }
-      result
+      i += 1
+      if (i == portRightBound - portLeftBound + 1) {
+        return -1
+      }
     }
+    result
   }
 
   def printSockets() {

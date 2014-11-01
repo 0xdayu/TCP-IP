@@ -32,7 +32,7 @@ object node {
     nodeInterface.initSocketAndInterfaces(args(0))
 
     // TCP
-    tcp = new TCP
+    tcp = new TCP(nodeInterface)
     val multiplexing = new Multiplexing(nodeInterface, tcp)
     val demultiplexing = new Demultiplexing(tcp)
 
