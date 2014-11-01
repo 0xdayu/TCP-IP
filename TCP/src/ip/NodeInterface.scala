@@ -344,13 +344,13 @@ class NodeInterface {
 
               pkt.head = head
 
-              // add TCP checksum
-              if (proto == TCP) {
-                val sum = tcputil.TCPSum.tcpsum(pkt)
-                val segment = tcputil.ConvertObject.byteToTCPSegment(pkt.payLoad)
-                segment.head.checkSum = sum
-                pkt.payLoad = tcputil.ConvertObject.TCPSegmentToByte(segment)
-              }
+//              // add TCP checksum
+//              if (proto == TCP) {
+//                val sum = tcputil.TCPSum.tcpsum(pkt)
+//                val segment = tcputil.ConvertObject.byteToTCPSegment(pkt.payLoad)
+//                segment.head.checkSum = sum
+//                pkt.payLoad = tcputil.ConvertObject.TCPSegmentToByte(segment)
+//              }
 
               if (interface.isUpOrDown) {
                 if (cost != RIPInifinity) {
@@ -449,14 +449,22 @@ class NodeInterface {
 
   // get ip src address depending on dst address
   def getSrcAddr(dst: InetAddress): InetAddress = {
-    // lock
+    // lock    
     routingTableLock.readLock.lock
-    val nextHop = routingTable.getOrElse(dst, null)._2
+    val pair = routingTable.getOrElse(dst, null)
     routingTableLock.readLock.unlock
-    
-    if (nextHop != null) {
-      virtAddrToInterface.getOrElse(nextHop, null).link.localVirtIP
+
+    if (pair != null) {
+      virtAddrToInterface.getOrElse(pair._2, null).link.localVirtIP
     } else {
+      for (interface <- linkInterfaceArray) {
+        if (interface.getLocalIP == dst) {
+          // local print
+          if (interface.isUpOrDown) {
+            return interface.link.localVirtIP
+          }
+        }
+      }
       null
     }
   }

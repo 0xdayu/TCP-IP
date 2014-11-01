@@ -295,12 +295,6 @@ object Handler {
 
     for (interface <- nodeInterface.linkInterfaceArray) {
       if (interface.compareIP(dstIpAddr)) {
-        val sum = tcputil.TCPSum.tcpsum(packet)
-        if ((sum & 0xfff) != 0) {
-          println("This packet has wrong tcp checksum!")
-          return
-        }
-
         val seg = tcputil.ConvertObject.byteToTCPSegment(packet.payLoad)
 
         tcp.demultiplexingBuff.bufferWrite(packet.head.saddr, packet.head.daddr, seg)

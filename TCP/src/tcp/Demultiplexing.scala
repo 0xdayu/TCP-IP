@@ -13,9 +13,19 @@ class Demultiplexing(tcp: TCP) extends Runnable {
     while (done) {
       val tuple = tcp.demultiplexingBuff.bufferRead
       if (tuple != null) {
-        // PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
+        println("Demultiplexing start")
+        PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
+        println("Demultiplexing end")
 
         val seg = tuple._3
+
+        // valid checksum
+        val sum = tcputil.TCPSum.tcpsum(tuple._1, tuple._2, ConvertObject.TCPSegmentToByte(seg))
+        if ((sum & 0xfff) != 0) {
+          println("This packet has wrong tcp checksum!")
+          return
+        }
+
         val client = tcp.clientHashMap.getOrElse((tuple._2, seg.head.dstPort, tuple._1, seg.head.srcPort), null)
         if (client == null) {
           // maybe server
