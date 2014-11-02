@@ -3,10 +3,14 @@ package tcputil
 import scala.collection.mutable.Queue
 import tcp.TCPSegment
 import java.net.InetAddress
+import java.util.concurrent.Semaphore
 
 class FIFOBuffer(capacity: Int) {
   val buffer = new Queue[(InetAddress, InetAddress, TCPSegment)]
   var size = 0
+
+  // lock
+  val semaphore = new Semaphore(0);
 
   def getCapacity: Int = capacity
 
@@ -24,6 +28,7 @@ class FIFOBuffer(capacity: Int) {
       if (len > capacity - size) {
         println("No enough space to store the segment, drop this segment")
       } else {
+        semaphore.release
         buffer.enqueue((src, dst, seg))
         size += len
       }
@@ -31,6 +36,7 @@ class FIFOBuffer(capacity: Int) {
   }
 
   def bufferRead(): (InetAddress, InetAddress, TCPSegment) = {
+    semaphore.acquire
     this.synchronized {
       if (size == 0) {
         null
@@ -39,13 +45,6 @@ class FIFOBuffer(capacity: Int) {
         size -= tuple._3.head.dataOffset + tuple._3.payLoad.length
         tuple
       }
-    }
-  }
-
-  def bufferClean() {
-    this.synchronized {
-      buffer.clear
-      size = 0
     }
   }
 }
