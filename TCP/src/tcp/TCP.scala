@@ -3,16 +3,14 @@ package tcp
 import tcputil._
 import exception._
 import java.net.InetAddress
-import java.util.BitSet
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{ HashMap, SynchronizedMap }
 import scala.util.Random
-import scala.compat.Platform
+import java.util.Collections
 
 class TCP(nodeInterface: ip.NodeInterface) {
   // file descriptor, 0 - input, 1 - output, 2 - error
   // start from 3 to 65535 (2^16 - 1) or less
 
-  // TODO: need to be confirmed
   val DefaultFlowBuffSize = 4096
   val DefaultMultiplexingBuffSize = 1024 * 1024 * 1024
 
@@ -23,97 +21,108 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val portRightBound = 65535
 
   // one socket to one connection
-  val socketArray = new BitSet
-  val boundedSocketHashMap = new HashMap[Int, TCPConnection]
+  val socketArray = new SynBitSet
+  val boundedSocketHashMap = new HashMap[Int, TCPConnection] with SynchronizedMap[Int, TCPConnection]
 
   // port number, start from 1024 to 65535 (2^16 - 1)
-  val portArray = new BitSet
+  val portArray = new SynBitSet
 
   // port -> connection
   // (srcip, srcport, dstip, dstport) -> connection
-  val serverHashMap = new HashMap[Int, TCPConnection]
-  val clientHashMap = new HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
+  val serverHashMap = new HashMap[Int, TCPConnection] with SynchronizedMap[Int, TCPConnection]
+  val clientHashMap = new HashMap[(InetAddress, Int, InetAddress, Int), TCPConnection] with SynchronizedMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
 
   val multiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
   val demultiplexingBuff = new FIFOBuffer(DefaultMultiplexingBuffSize)
 
   def virSocket(): Int = {
-    for (i <- Range(socketLeftBound, socketRightBound + 1)) {
-      if (!socketArray.get(i)) {
-        socketArray.set(i)
-        return i
+    this.synchronized {
+      for (i <- Range(socketLeftBound, socketRightBound + 1)) {
+        if (!socketArray.get(i)) {
+          socketArray.set(i)
+          return i
+        }
       }
-    }
 
-    throw new SocketUsedUpException
+      throw new SocketUsedUpException
+    }
   }
 
   def virBind(socket: Int, addr: InetAddress, port: Int) {
-    // addr is not used in virBind
-    // check whether socket has been asigned
-    if (socket < socketLeftBound || socket > socketRightBound) {
-      throw new InvalidSocketException(socket)
-    } else if (!socketArray.get(socket)) {
-      throw new UninitialSocketException(socket)
-    } else if (boundedSocketHashMap.contains(socket)) {
-      throw new BoundedSocketException(socket)
-    } else if (port < portLeftBound || port > portRightBound) {
-      throw new InvalidPortException(port)
-    } else if (portArray.get(port)) {
-      throw new UsedPortException(port)
-    } else {
-      val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize, this)
-      boundedSocketHashMap.put(socket, newCon)
+    this.synchronized {
+      // addr is not used in virBind
+      // check whether socket has been asigned
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (boundedSocketHashMap.contains(socket)) {
+        throw new BoundedSocketException(socket)
+      } else if (port < portLeftBound || port > portRightBound) {
+        throw new InvalidPortException(port)
+      } else if (portArray.get(port)) {
+        throw new UsedPortException(port)
+      } else {
+        val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize, this)
+        boundedSocketHashMap.put(socket, newCon)
+      }
     }
   }
 
   def virListen(socket: Int) {
-    if (socket < socketLeftBound || socket > socketRightBound) {
-      throw new InvalidSocketException(socket)
-    } else if (!socketArray.get(socket)) {
-      throw new UninitialSocketException(socket)
-    } else if (!boundedSocketHashMap.contains(socket)) {
-      throw new UnboundSocketException(socket)
-    } else {
-      val conn = boundedSocketHashMap.getOrElse(socket, null)
-      if (!conn.setState(TCPState.LISTEN)) {
-        throw new ErrorTCPStateException
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        throw new UnboundSocketException(socket)
       } else {
-        serverHashMap.put(conn.srcPort, conn)
+        val conn = boundedSocketHashMap.getOrElse(socket, null)
+        if (!conn.setState(TCPState.LISTEN)) {
+          throw new ErrorTCPStateException
+        } else {
+          serverHashMap.put(conn.getSrcPort, conn)
+        }
       }
     }
   }
 
   def virConnect(socket: Int, addr: InetAddress, port: Int) {
-    if (socket < socketLeftBound || socket > socketRightBound) {
-      throw new InvalidSocketException(socket)
-    } else if (!socketArray.get(socket)) {
-      throw new UninitialSocketException(socket)
-    } else if (!boundedSocketHashMap.contains(socket)) {
-      // no this socket and randomly generate
-      val portNumber = generatePortNumber
-      if (portNumber == -1) {
-        throw new PortUsedUpException
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        // no this socket and randomly generate
+        val portNumber = generatePortNumber
+        if (portNumber == -1) {
+          throw new PortUsedUpException
+        }
+        val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize, this)
+        boundedSocketHashMap.put(socket, newCon)
       }
-      val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize, this)
-      boundedSocketHashMap.put(socket, newCon)
     }
 
     // initial all parameters for the TCP connection
     if (port < portLeftBound || port > portRightBound) {
       throw new InvalidPortException(port)
     } else {
-      // 1 of 3 3-way handshake
-      val conn = boundedSocketHashMap.getOrElse(socket, null)
-      val ip = nodeInterface.getSrcAddr(addr)
-      if (ip == null) {
-        throw new DestinationUnreachable(addr)
-      }
-      conn.srcIP = ip
-      conn.dstIP = addr
-      conn.dstPort = port
+      var conn: TCPConnection = null
+      this.synchronized {
+        // 1 of 3 3-way handshake
+        conn = boundedSocketHashMap.getOrElse(socket, null)
+        val ip = nodeInterface.getSrcAddr(addr)
+        if (ip == null) {
+          throw new DestinationUnreachable(addr)
+        }
+        conn.setSrcIP(ip)
+        conn.setDstIP(addr)
+        conn.setDstPort(port)
 
-      clientHashMap.put((conn.srcIP, conn.srcPort, conn.dstIP, conn.dstPort), conn)
+        clientHashMap.put((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort), conn)
+      }
 
       conn.generateAndSentFirstTCPSegment
 
@@ -129,38 +138,44 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
   // return (socket, dstport, dstip)
   def virAccept(socket: Int): (Int, Int, InetAddress) = {
-    if (socket < socketLeftBound || socket > socketRightBound) {
-      throw new InvalidSocketException(socket)
-    } else if (!socketArray.get(socket)) {
-      throw new UninitialSocketException(socket)
-    } else if (!boundedSocketHashMap.contains(socket)) {
-      throw new UnboundSocketException(socket)
-    } else {
+    var conn: TCPConnection = null
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        throw new UnboundSocketException(socket)
+      }
       // remove from queue
-      val conn = boundedSocketHashMap.getOrElse(socket, null)
-      if (!conn.pendingQueue.isEmpty) {
-        val (tuple, newConn) = conn.pendingQueue.head
-        conn.pendingQueue.remove(tuple)
+      conn = boundedSocketHashMap.getOrElse(socket, null)
+    }
+    conn.semaphoreQueue.acquire
+    if (!conn.pendingQueue.isEmpty) {
+      val (tuple, newConn) = conn.pendingQueue.head
+      conn.pendingQueue.remove(tuple)
 
-        // assign new socket
-        val newSocket = virSocket()
-        newConn.socket = newSocket
+      // assign new socket
+      val newSocket = virSocket()
+      newConn.setSocket(newSocket)
 
+      this.synchronized {
         // put into map
         boundedSocketHashMap.put(newSocket, newConn)
         clientHashMap.put(tuple, newConn)
-
-        newConn.setState(TCPState.SYN_RECV)
-        val seg = newConn.generateTCPSegment
-
-        seg.head.syn = 1
-        seg.head.ack = 1
-        multiplexingBuff.bufferWrite(newConn.srcIP, newConn.dstIP, seg)
-
-        (newSocket, conn.dstPort, conn.dstIP)
-      } else {
-        null
       }
+
+      newConn.setState(TCPState.SYN_RECV)
+      val seg = newConn.generateTCPSegment
+
+      seg.head.syn = 1
+      seg.head.ack = 1
+
+      multiplexingBuff.bufferWrite(newConn.getSrcIP, newConn.getDstIP, seg)
+
+      (newSocket, conn.getDstPort, conn.getDstIP)
+    } else {
+      null
     }
   }
 
@@ -199,8 +214,22 @@ class TCP(nodeInterface: ip.NodeInterface) {
   }
 
   def printSockets() {
-    for (socket <- boundedSocketHashMap.keySet) {
-      println("Socket: " + socket + " Port: " + boundedSocketHashMap.getOrElse(socket, null).srcPort + " State: " + boundedSocketHashMap.getOrElse(socket, null).getState)
+    this.synchronized {
+      val set = boundedSocketHashMap.keySet
+      val list = set.toList.sortWith(_ < _)
+      if (list.isEmpty) {
+        println("[none]")
+      } else {
+        println("socket\tlocal address:port\tremote address:port\tstatus")
+        for (socket <- list) {
+          val conn = boundedSocketHashMap.getOrElse(socket, null)
+          if (conn.getSrcIP != null) {
+            println("[" + socket + "]\t[" + conn.getSrcIP.getHostAddress + ":" + conn.getSrcPort + "]\t[" + conn.getDstIP.getHostAddress + ":" + conn.getDstPort + "]\t" + conn.getState)
+          } else {
+            println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState)
+          }
+        }
+      }
     }
   }
 }
