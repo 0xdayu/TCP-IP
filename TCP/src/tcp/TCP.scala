@@ -187,7 +187,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   }
 
   def virWrite(socket: Int, buf: Array[Byte]): Int = {
-	  1
+    1
   }
 
   def virShutDown(socket: Int, sdType: Int) {
@@ -196,6 +196,28 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
   def virClose(socket: Int) {
 
+  }
+
+  def virReadAll(socket: Int, numbytes: Int): Array[Byte] = {
+    var readBytes = 0
+    var buf = new Array[Byte](0)
+    while (readBytes < numbytes) {
+      val ret = virRead(socket, numbytes - readBytes)
+      readBytes += ret.length
+      buf ++= ret
+    }
+
+    buf
+  }
+
+  def virWriteAll(socket: Int, buf: Array[Byte]): Int = {
+    var writeBytes = 0
+    while (writeBytes < buf.length) {
+      val ret = virWrite(socket, buf.slice(writeBytes, buf.length))
+      writeBytes += ret
+    }
+
+    writeBytes
   }
 
   // Below are helper functions

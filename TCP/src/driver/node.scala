@@ -5,6 +5,7 @@ import util._
 import java.net.InetAddress
 import tcp._
 import scala.io._
+import java.io._
 
 object node {
   val UsageCommand = "We only accept: [h]help, [li]interfaces, [lr]routes, " +
@@ -269,7 +270,7 @@ object node {
         try {
           var buf: Array[Byte] = null
           if (shouldLoop == "y") {
-            buf = virReadAll(socket, numbytes)
+            buf = tcp.virReadAll(socket, numbytes)
           } else {
             buf = tcp.virRead(socket, numbytes)
           }
@@ -326,7 +327,26 @@ object node {
     } else if (arr(2).trim.forall(_.isDigit)) {
       val filename = arr(1)
       val port = arr(2).toInt
-      // TODO
+
+      try {
+        val socket = tcp.virSocket
+        tcp.virBind(socket, null, port)
+
+        tcp.virListen(socket)
+
+        var source: PrintWriter = null
+        try {
+          source = new PrintWriter(new File("test.txt" ))
+        } catch {
+          case _: Throwable => println("The wrong path of file: " + filename)
+        }
+
+        if (source != null) {
+          new Thread(new RecvFile(socket, source, tcp)).start
+        }
+      } catch {
+        case e: Exception => println(e.getMessage)
+      }
     } else {
       println("[rf]sendfile <filename> <port>: input should be port number: " + arr(2).trim)
     }
@@ -394,26 +414,6 @@ object node {
       nodeInterface.setMTU(num, mtu)
     } else {
       println("[m]tu: input should be two numbers")
-    }
-  }
-
-  def virReadAll(socket: Int, numbytes: Int): Array[Byte] = {
-    var readBytes = 0
-    var buf = new Array[Byte](0)
-    while (readBytes < numbytes) {
-      val ret = tcp.virRead(socket, numbytes - readBytes)
-      readBytes += ret.length
-      buf ++= ret
-    }
-
-    buf
-  }
-
-  def virWriteAll(socket: Int, buf: Array[Byte]) {
-    var writeBytes = 0
-    while (writeBytes < buf.length) {
-      val ret = tcp.virWrite(socket, buf.slice(writeBytes, buf.length))
-      writeBytes += ret
     }
   }
 }
