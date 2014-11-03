@@ -14,6 +14,9 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
 
   var state = TCPState.CLOSE
 
+  var checkState: TCPState.Value = null
+  val semaphoreCheckState = new Semaphore(0)
+
   var sendBuf: SendBuffer = new SendBuffer(fb)
   var recvBuf: RecvBuffer = new RecvBuffer(fb)
 
@@ -64,6 +67,11 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
       var ret = false
       if (nextState.getOrElse(state, null).contains(next)) {
         state = next
+        if (checkState == next) {
+          semaphoreCheckState.release
+          // back to null
+          checkState = null
+        }
         ret = true
       } else {
         ret = false
@@ -76,6 +84,18 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
     this.synchronized {
       state
     }
+  }
+
+  // set wait state before sending segment
+  def setWaitState(waitState: TCPState.Value) {
+    this.synchronized {
+      checkState = waitState
+    }
+  }
+
+  // wait that setting state after sending segment
+  def waitState() {
+    semaphoreCheckState.acquire
   }
 
   def increaseSeqNumber(a: Int) = {
@@ -92,7 +112,8 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
     }
   }
 
-  def generateAndSentFirstTCPSegment() {
+  // user generate
+  def generateFirstTCPSegment(): TCPSegment = {
     this.synchronized {
       // generate TCP segment
       val newTCPSegment = new TCPSegment
@@ -105,14 +126,16 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.syn = 1
       newTCPHead.winSize = this.recvBuf.available
-      // checksum will update later in the ip layer
+      // checksum will update later
 
       newTCPSegment.head = newTCPHead
       newTCPSegment.payLoad = new Array[Byte](0)
-      tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newTCPSegment)
+
+      newTCPSegment
     }
   }
 
+  // user generate
   def generateTCPSegment(): TCPSegment = {
     this.synchronized {
       val newTCPSegment = new TCPSegment
@@ -126,10 +149,11 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.winSize = this.recvBuf.available
-      // checksum will update later in the ip layer
+      // checksum will update later
 
       newTCPSegment.head = newTCPHead
       newTCPSegment.payLoad = new Array[Byte](0)
+
       newTCPSegment
     }
   }
@@ -145,8 +169,10 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
     newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
     newTCPHead.winSize = this.recvBuf.available
     val newTCPSegment = new TCPSegment
+
     newTCPSegment.head = newTCPHead
     newTCPSegment.payLoad = new Array[Byte](0)
+
     newTCPSegment
   }
 
@@ -159,7 +185,7 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
         case TCPState.SYN_SENT =>
           // expect to get segment with syn+ack (3 of 3 handshakes)
           if (seg.head.syn == 1 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum) {
-            this.setState(TCPState.ESTABLISHED)
+            setState(TCPState.ESTABLISHED)
 
             // TODO : Add payload
             this.ackNum = seg.head.seqNum
@@ -171,7 +197,7 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
           }
         case TCPState.SYN_RECV =>
           if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum) {
-            this.setState(TCPState.ESTABLISHED)
+            setState(TCPState.ESTABLISHED)
 
             // TODO
           }

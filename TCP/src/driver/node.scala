@@ -4,6 +4,7 @@ import ip._
 import util._
 import java.net.InetAddress
 import tcp._
+import scala.io._
 
 object node {
   val UsageCommand = "We only accept: [h]help, [li]interfaces, [lr]routes, " +
@@ -244,9 +245,14 @@ object node {
     if (arr.length <= 2) {
       println(UsageCommand)
     } else if (arr(1).trim.forall(_.isDigit)) {
+      val socket = arr(1).toInt
       val len = line.indexOf(arr(1)) + arr(1).length + 1
       val data = line.getBytes().slice(len, line.length)
-      // TODO
+      try {
+        tcp.virWrite(socket, data)
+      } catch {
+        case e: Exception => println(e.getMessage)
+      }
     } else {
       println("[s/w]send <socket> <data>: input should be socket number: " + arr(1).trim)
     }
@@ -260,7 +266,17 @@ object node {
         val socket = arr(1).toInt
         val numbytes = arr(2).toInt
         val shouldLoop = arr(3)
-        // TODO
+        try {
+          var buf: Array[Byte] = null
+          if (shouldLoop == "y") {
+            buf = virReadAll(socket, numbytes)
+          } else {
+            buf = tcp.virRead(socket, numbytes)
+          }
+          println("Recv on " + numbytes + " bytes returned " + buf.length + "; contents of buffer: " + new String(buf.map(_.toChar)))
+        } catch {
+          case e: Exception => println(e.getMessage)
+        }
       } else {
         println("[r]recv <socket> <numbytes> <y/n>: input should be socket number: " + arr(2).trim + " and numbytes: " + arr(3).trim)
       }
@@ -278,7 +294,23 @@ object node {
         val strIp = arr(2)
         var ip = InetAddress.getByName(strIp)
         val port = arr(3).trim.toInt
-        // TODO
+        try {
+          val socket = tcp.virSocket
+          tcp.virConnect(socket, ip, port)
+
+          var source: BufferedSource = null
+          try {
+            source = Source.fromFile(filename)
+          } catch {
+            case _: Throwable => println("The wrong path of file: " + filename)
+          }
+
+          if (source != null) {
+            new Thread(new SendFile(socket, source, tcp)).start
+          }
+        } catch {
+          case e: Exception => println(e.getMessage)
+        }
       } catch {
         case _: Throwable =>
           println("Invalid IP Address")
@@ -325,7 +357,11 @@ object node {
         } else {
           sdType = 3
         }
-        // TODO
+        try {
+          tcp.virShutDown(socket, sdType)
+        } catch {
+          case e: Exception => println(e.getMessage)
+        }
       } else {
         println("[sd]shutdown <socket> <read/write/both>: input should be read/write/both: " + arr(2))
       }
@@ -339,7 +375,11 @@ object node {
       println(UsageCommand)
     } else if (arr(1).trim.forall(_.isDigit)) {
       val socket = arr(1).trim.toInt
-      // TODO
+      try {
+        tcp.virClose(socket)
+      } catch {
+        case e: Exception => println(e.getMessage)
+      }
     } else {
       println("[cl]close <socket>: input should be socket number: " + arr(1).trim)
     }
@@ -354,6 +394,26 @@ object node {
       nodeInterface.setMTU(num, mtu)
     } else {
       println("[m]tu: input should be two numbers")
+    }
+  }
+
+  def virReadAll(socket: Int, numbytes: Int): Array[Byte] = {
+    var readBytes = 0
+    var buf = new Array[Byte](0)
+    while (readBytes < numbytes) {
+      val ret = tcp.virRead(socket, numbytes - readBytes)
+      readBytes += ret.length
+      buf ++= ret
+    }
+
+    buf
+  }
+
+  def virWriteAll(socket: Int, buf: Array[Byte]) {
+    var writeBytes = 0
+    while (writeBytes < buf.length) {
+      val ret = tcp.virWrite(socket, buf.slice(writeBytes, buf.length))
+      writeBytes += ret
     }
   }
 }

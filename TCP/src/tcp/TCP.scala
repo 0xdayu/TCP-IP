@@ -124,14 +124,17 @@ class TCP(nodeInterface: ip.NodeInterface) {
         clientHashMap.put((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort), conn)
       }
 
-      conn.generateAndSentFirstTCPSegment
+      // set wait state
+      conn.setWaitState(TCPState.ESTABLISHED)
+
+      multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, conn.generateFirstTCPSegment)
 
       // finish 1 of 3 3-way handshake
       conn.setState(TCPState.SYN_SENT)
 
-      while (conn.getState != TCPState.ESTABLISHED) {
-        ;
-      }
+      // wait that state
+      conn.waitState
+
       println("Established connection succesfully")
     }
   }
@@ -179,12 +182,12 @@ class TCP(nodeInterface: ip.NodeInterface) {
     }
   }
 
-  def virRead(socket: Int): Array[Byte] = {
+  def virRead(socket: Int, numbytes: Int): Array[Byte] = {
     null
   }
 
-  def virWrite(socket: Int, buf: Array[Byte]) {
-
+  def virWrite(socket: Int, buf: Array[Byte]): Int = {
+	  1
   }
 
   def virShutDown(socket: Int, sdType: Int) {

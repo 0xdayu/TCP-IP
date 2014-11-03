@@ -344,14 +344,6 @@ class NodeInterface {
 
               pkt.head = head
 
-//              // add TCP checksum
-//              if (proto == TCP) {
-//                val sum = tcputil.TCPSum.tcpsum(pkt)
-//                val segment = tcputil.ConvertObject.byteToTCPSegment(pkt.payLoad)
-//                segment.head.checkSum = sum
-//                pkt.payLoad = tcputil.ConvertObject.TCPSegmentToByte(segment)
-//              }
-
               if (interface.isUpOrDown) {
                 if (cost != RIPInifinity) {
                   interface.outBuffer.bufferWrite(pkt)
