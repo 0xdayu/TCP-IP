@@ -1,18 +1,19 @@
 package driver
 
-import scala.io._
+import java.io._
 import tcp.TCP
 
-class SendFile(socket: Int, source: BufferedSource, tcp: TCP) extends Runnable {
+class SendFile(socket: Int, source: BufferedReader, tcp: TCP) extends Runnable {
   val BufSize = 1024
-  var writeBytes = 0
+  var off = 0
 
   def run() {
     try {
-      val buf: Array[Byte] = source.map(_.toByte).toArray
-      while (writeBytes < buf.length) {
-        val ret = tcp.virWriteAll(socket, buf.slice(writeBytes, writeBytes + BufSize))
-        writeBytes += ret
+      val buf = new Array[Char](BufSize)
+      var readBytes = source.read(buf, off, BufSize)
+      while (readBytes != -1) {
+        val writeBytes = tcp.virWriteAll(socket, buf.map(_.toByte).toArray.slice(0, readBytes))
+        off += writeBytes
       }
 
       tcp.virClose(socket)

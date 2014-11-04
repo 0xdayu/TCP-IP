@@ -4,7 +4,6 @@ import ip._
 import util._
 import java.net.InetAddress
 import tcp._
-import scala.io._
 import java.io._
 
 object node {
@@ -299,9 +298,9 @@ object node {
           val socket = tcp.virSocket
           tcp.virConnect(socket, ip, port)
 
-          var source: BufferedSource = null
+          var source: BufferedReader = null
           try {
-            source = Source.fromFile(filename)
+            source = new BufferedReader(new FileReader("test.txt"))
           } catch {
             case _: Throwable => println("The wrong path of file: " + filename)
           }

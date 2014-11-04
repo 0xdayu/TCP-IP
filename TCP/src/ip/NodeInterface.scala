@@ -222,6 +222,7 @@ class NodeInterface {
     // lock
     routingTableLock.readLock.lock
     val flag = routingTable.contains(dstVirtIp)
+    routingTableLock.readLock.unlock
 
     if (!flag) {
       for (interface <- linkInterfaceArray) {
@@ -272,7 +273,6 @@ class NodeInterface {
       }
     }
 
-    routingTableLock.readLock.unlock
     if (!flag) {
       println("Destination Unreachable!")
     } else {

@@ -225,11 +225,14 @@ class NodeInterface {
     } else {
       val dstVirtIp = arr(1)
       // Check whether rip is in the routing table
-      // lock
-      routingTableLock.readLock.lock
+
       var flag = false
       try {
-        flag = routingTable.contains(InetAddress.getByName(dstVirtIp))
+        val ip = InetAddress.getByName(dstVirtIp)
+        // lock
+        routingTableLock.readLock.lock
+        flag = routingTable.contains(ip)
+        routingTableLock.readLock.unlock
       } catch {
         case _: Throwable =>
           println("Invalid IP address")
@@ -261,7 +264,6 @@ class NodeInterface {
         }
       }
 
-      routingTableLock.readLock.unlock
       if (!flag) {
         println("Destination Unreachable!")
       } else if (arr(2).forall(_.isDigit)) {

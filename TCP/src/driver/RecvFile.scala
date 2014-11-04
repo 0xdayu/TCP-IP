@@ -12,7 +12,6 @@ class RecvFile(socket: Int, source: PrintWriter, tcp: TCP) extends Runnable {
       val (newSocket, dstPort, dstIP) = tcp.virAccept(socket)
       tcp.virClose(socket)
 
-      //val buf: Array[Byte] = source.map(_.toByte).toArray
       var buf = tcp.virRead(socket, BufSize)
       while (buf.length != 0) {
         val str = new String(buf.map(_.toChar))
