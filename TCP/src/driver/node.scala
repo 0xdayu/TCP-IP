@@ -336,7 +336,7 @@ object node {
 
         var source: PrintWriter = null
         try {
-          source = new PrintWriter(new File("test.txt" ))
+          source = new PrintWriter(new File("test.txt"))
         } catch {
           case _: Throwable => println("The wrong path of file: " + filename)
         }

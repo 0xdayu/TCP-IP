@@ -184,7 +184,7 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
         case TCPState.ESTABLISHED =>
         case TCPState.SYN_SENT =>
           // expect to get segment with syn+ack (3 of 3 handshakes)
-          if (seg.head.syn == 1 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum) {
+          if (seg.head.syn == 1 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum && seg.payLoad.length == 0) {
             setState(TCPState.ESTABLISHED)
 
             // TODO : Add payload
@@ -196,7 +196,7 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
           }
         case TCPState.SYN_RECV =>
-          if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum) {
+          if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum && seg.payLoad.length == 0) {
             setState(TCPState.ESTABLISHED)
 
             // TODO
@@ -207,7 +207,7 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
         case TCPState.CLOSE_WAIT =>
         case TCPState.LAST_ACK =>
         case TCPState.LISTEN =>
-          if (seg.head.syn == 1) {
+          if (seg.head.syn == 1 && seg.payLoad.length == 0) {
             if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort))) {
               val conn = new TCPConnection(-1, seg.head.dstPort, tcp.DefaultFlowBuffSize, tcp)
               conn.dstIP = srcip
