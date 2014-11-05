@@ -18,7 +18,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   val semaphoreCheckState = new Semaphore(0)
 
   var sendBuf: SendBuffer = new SendBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow)
-  var recvBuf: RecvBuffer = new RecvBuffer(bufferSize)
+  var recvBuf: RecvBuffer = new RecvBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow)
 
   // src
   var srcIP: InetAddress = _

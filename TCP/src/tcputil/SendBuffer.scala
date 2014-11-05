@@ -3,8 +3,8 @@ package tcputil
 import java.util.ArrayList
 
 class SendBuffer(capacity: Int, sliding: Int) {
-  var writeBuf: Array[Byte] = _
-  var sendBuf: Array[Byte] = _
+  var writeBuf: Array[Byte] = new Array[Byte](0)
+  var sendBuf: Array[Byte] = new Array[Byte](0)
 
   var available: Int = capacity
   var slide: Int = sliding
@@ -19,7 +19,7 @@ class SendBuffer(capacity: Int, sliding: Int) {
     }
   }
 
-  def send(size: Int): Array[Byte] = {
+  def read(size: Int): Array[Byte] = {
     this.synchronized {
       // maybe slide < sendBuf.length
       if (slide <= sendBuf.length) {
@@ -35,7 +35,7 @@ class SendBuffer(capacity: Int, sliding: Int) {
     }
   }
 
-  def checkAck(len: Int) {
+  def removeFlightData(len: Int) {
     this.synchronized {
       if (len != 0) {
         sendBuf = sendBuf.slice(len, sendBuf.length)
