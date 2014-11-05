@@ -8,7 +8,7 @@ import scala.compat.Platform
 import scala.collection.mutable.LinkedHashMap
 import java.util.concurrent.Semaphore
 
-class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
+class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   var socket: Int = skt
 
@@ -17,8 +17,8 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
   var checkState: TCPState.Value = null
   val semaphoreCheckState = new Semaphore(0)
 
-  var sendBuf: SendBuffer = new SendBuffer(fb)
-  var recvBuf: RecvBuffer = new RecvBuffer(fb)
+  var sendBuf: SendBuffer = new SendBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow)
+  var recvBuf: RecvBuffer = new RecvBuffer(bufferSize)
 
   // src
   var srcIP: InetAddress = _
@@ -33,6 +33,8 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
 
   val pendingQueue = new LinkedHashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
   val semaphoreQueue = new Semaphore(0)
+
+  var dataSendingThread: Thread = _
 
   val previousState = new HashMap[TCPState.Value, Array[TCPState.Value]]
   val nextState = new HashMap[TCPState.Value, Array[TCPState.Value]]
@@ -187,6 +189,10 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
           if (seg.head.syn == 1 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum && seg.payLoad.length == 0) {
             setState(TCPState.ESTABLISHED)
 
+            // new send thread
+            dataSendingThread = new Thread(new DataSending(this))
+            dataSendingThread.start
+
             // TODO : Add payload
             this.ackNum = seg.head.seqNum
 
@@ -199,6 +205,10 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
           if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum && seg.payLoad.length == 0) {
             setState(TCPState.ESTABLISHED)
 
+            // new send thread
+            dataSendingThread = new Thread(new DataSending(this))
+            dataSendingThread.start
+
             // TODO
           }
         case TCPState.FIN_WAIT1 =>
@@ -209,7 +219,7 @@ class TCPConnection(skt: Int, port: Int, fb: Int, tcp: TCP) {
         case TCPState.LISTEN =>
           if (seg.head.syn == 1 && seg.payLoad.length == 0) {
             if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort))) {
-              val conn = new TCPConnection(-1, seg.head.dstPort, tcp.DefaultFlowBuffSize, tcp)
+              val conn = new TCPConnection(-1, seg.head.dstPort, tcp)
               conn.dstIP = srcip
               conn.dstPort = seg.head.srcPort
               conn.srcIP = dstip

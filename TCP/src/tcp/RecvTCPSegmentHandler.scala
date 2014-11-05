@@ -3,7 +3,7 @@ package tcp
 import java.net.InetAddress
 import tcputil.ConvertObject
 
-class ReceivedTCPSegmentHandler(tuple: (InetAddress, InetAddress, TCPSegment), tcp: TCP) extends Runnable {
+class RecvTCPSegmentHandler(tuple: (InetAddress, InetAddress, TCPSegment), tcp: TCP) extends Runnable {
   def run() {
     val seg = tuple._3
 

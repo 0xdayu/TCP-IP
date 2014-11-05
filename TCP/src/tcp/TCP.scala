@@ -11,8 +11,12 @@ class TCP(nodeInterface: ip.NodeInterface) {
   // file descriptor, 0 - input, 1 - output, 2 - error
   // start from 3 to 65535 (2^16 - 1) or less
 
-  val DefaultFlowBuffSize = 4096
-  val DefaultMultiplexingBuffSize = 1024 * 1024 * 1024
+  val DefaultFlowBuffSize = 1024 * 1024
+  val DefaultMultiplexingBuffSize = 10 * 1024 * 1024
+  
+  
+  val DefaultSlidingWindow = 10 *1024
+  val DefaultMSS = 1024
 
   val socketLeftBound = 3
   val socketRightBound = 65535
@@ -63,7 +67,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       } else if (portArray.get(port)) {
         throw new UsedPortException(port)
       } else {
-        val newCon = new TCPConnection(socket, port, DefaultFlowBuffSize, this)
+        val newCon = new TCPConnection(socket, port, this)
         boundedSocketHashMap.put(socket, newCon)
       }
     }
@@ -100,7 +104,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
         if (portNumber == -1) {
           throw new PortUsedUpException
         }
-        val newCon = new TCPConnection(socket, portNumber, DefaultFlowBuffSize, this)
+        val newCon = new TCPConnection(socket, portNumber, this)
         boundedSocketHashMap.put(socket, newCon)
       }
     }

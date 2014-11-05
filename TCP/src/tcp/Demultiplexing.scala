@@ -17,7 +17,7 @@ class Demultiplexing(tcp: TCP) extends Runnable {
         PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
         println("Demultiplexing end")
 
-        executors.execute(new ReceivedTCPSegmentHandler(tuple, tcp))
+        executors.execute(new RecvTCPSegmentHandler(tuple, tcp))
       }
     }
   }
