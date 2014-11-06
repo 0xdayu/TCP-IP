@@ -1,7 +1,7 @@
 package tcputil
 
 class RecvBuffer(capacity: Int, sliding: Int) {
-  var recvBuf: Array[Byte] = _
+  var recvBuf: Array[Byte] = new Array[Byte](0)
 
   // Begin, End
   var linkList: Array[(Int, Int, Array[Byte])] = new Array[(Int, Int, Array[Byte])](0)

@@ -44,6 +44,12 @@ class SendBuffer(capacity: Int, sliding: Int) {
     }
   }
 
+  def getSendLength(): Int = {
+    this.synchronized {
+      sendBuf.length
+    }
+  }
+
   def setSliding(newSliding: Int) {
     this.synchronized {
       slide = newSliding

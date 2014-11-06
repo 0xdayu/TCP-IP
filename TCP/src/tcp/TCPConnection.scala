@@ -33,8 +33,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   val pendingQueue = new LinkedHashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
   val semaphoreQueue = new Semaphore(0)
-  
-  val PendingQueueSize = 65535 
+
+  val PendingQueueSize = 65535
 
   var dataSendingThread: Thread = _
 
@@ -102,17 +102,19 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
     semaphoreCheckState.acquire
   }
 
-  def increaseSeqNumber(a: Int) = {
-    seqNum = (seqNum + a.asInstanceOf[Long]) % math.pow(2, 32).asInstanceOf[Long]
-  }
-
-  def increaseAckNumber(a: Int) = {
-    ackNum = (ackNum + a.asInstanceOf[Long]) % math.pow(2, 32).asInstanceOf[Long]
+  def increaseNumber(num: Long, a: Int): Long = {
+    (num + a.asInstanceOf[Long]) % math.pow(2, 32).asInstanceOf[Long]
   }
 
   def isServerAndListen(): Boolean = {
     this.synchronized {
       state == TCPState.LISTEN
+    }
+  }
+
+  def isEstablished(): Boolean = {
+    this.synchronized {
+      state == TCPState.ESTABLISHED
     }
   }
 
@@ -126,7 +128,6 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.srcPort = this.srcPort
       newTCPHead.dstPort = this.dstPort
       newTCPHead.seqNum = this.seqNum
-      increaseSeqNumber(1)
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.syn = 1
       newTCPHead.winSize = this.recvBuf.available
@@ -148,8 +149,6 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.srcPort = this.srcPort
       newTCPHead.dstPort = this.dstPort
       newTCPHead.seqNum = this.seqNum
-      increaseSeqNumber(1)
-      increaseAckNumber(1)
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.winSize = this.recvBuf.available
@@ -162,14 +161,35 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
     }
   }
 
+  def generateTCPSegment(payload: Array[Byte]): TCPSegment = {
+    this.synchronized {
+      val newTCPSegment = new TCPSegment
+      val newTCPHead = new TCPHead
+      // initial tcp packet
+      newTCPHead.srcPort = this.srcPort
+      newTCPHead.dstPort = this.dstPort
+      newTCPHead.seqNum = increaseNumber(this.seqNum, this.sendBuf.getSendLength)
+      newTCPHead.ackNum = this.ackNum
+      newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
+      newTCPHead.winSize = this.recvBuf.available
+      // checksum will update later
+
+      // set all the acks
+      newTCPHead.ack = 1
+
+      newTCPSegment.head = newTCPHead
+      newTCPSegment.payLoad = payload
+
+      newTCPSegment
+    }
+  }
+
   def replyTCPSegment(seg: TCPSegment): TCPSegment = {
     val newTCPHead = new TCPHead
     newTCPHead.srcPort = seg.head.dstPort
     newTCPHead.dstPort = seg.head.srcPort
     newTCPHead.seqNum = this.seqNum
-    increaseSeqNumber(1)
-    increaseAckNumber(1)
-    newTCPHead.ackNum = this.ackNum
+    newTCPHead.ackNum = increaseNumber(this.ackNum, 1)
     newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
     newTCPHead.winSize = this.recvBuf.available
     val newTCPSegment = new TCPSegment
@@ -186,17 +206,17 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       state match {
         case TCPState.CLOSE =>
         case TCPState.ESTABLISHED =>
+
         case TCPState.SYN_SENT =>
           // expect to get segment with syn+ack (3 of 3 handshakes)
-          if (seg.head.syn == 1 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum && seg.payLoad.length == 0) {
+          if (seg.head.syn == 1 && seg.head.ack == 1 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.payLoad.length == 0) {
+            this.seqNum = increaseNumber(this.seqNum, 1)
+            this.ackNum = increaseNumber(seg.head.seqNum, 1)
             setState(TCPState.ESTABLISHED)
 
             // new send thread
-            dataSendingThread = new Thread(new DataSending(this))
+            dataSendingThread = new Thread(new DataSending(this, tcp))
             dataSendingThread.start
-
-            // TODO : Add payload
-            this.ackNum = seg.head.seqNum
 
             val ackSeg = replyTCPSegment(seg)
             ackSeg.head.ack = 1
@@ -204,14 +224,16 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
           }
         case TCPState.SYN_RECV =>
-          if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.ackNum == this.seqNum && seg.payLoad.length == 0) {
+          if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.seqNum == this.ackNum) {
+            this.seqNum = increaseNumber(this.seqNum, 1)
+
             setState(TCPState.ESTABLISHED)
 
-            // new send thread
-            dataSendingThread = new Thread(new DataSending(this))
-            dataSendingThread.start
+            this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(0, seg.payLoad)._1)
 
-            // TODO
+            // new send thread
+            dataSendingThread = new Thread(new DataSending(this, tcp))
+            dataSendingThread.start
           }
         case TCPState.FIN_WAIT1 =>
         case TCPState.FIN_WAIT2 =>
@@ -219,14 +241,14 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         case TCPState.CLOSE_WAIT =>
         case TCPState.LAST_ACK =>
         case TCPState.LISTEN =>
-          if (seg.head.syn == 1 && seg.payLoad.length == 0) {
+          if (seg.head.syn == 1 && seg.payLoad.length == 0 && seg.payLoad.length == 0) {
             if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort)) && pendingQueue.size <= this.PendingQueueSize) {
               val conn = new TCPConnection(-1, seg.head.dstPort, tcp)
               conn.dstIP = srcip
               conn.dstPort = seg.head.srcPort
               conn.srcIP = dstip
 
-              conn.ackNum = seg.head.seqNum
+              conn.ackNum = increaseNumber(seg.head.seqNum, 1)
 
               conn.setState(TCPState.LISTEN)
 

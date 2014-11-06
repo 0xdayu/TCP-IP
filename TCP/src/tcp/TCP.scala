@@ -83,7 +83,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       } else {
         val conn = boundedSocketHashMap.getOrElse(socket, null)
         if (!conn.setState(TCPState.LISTEN)) {
-          throw new ErrorTCPStateException
+          throw new ErrorTCPStateException(conn.getState)
         } else {
           serverHashMap.put(conn.getSrcPort, conn)
         }
@@ -153,9 +153,9 @@ class TCP(nodeInterface: ip.NodeInterface) {
       } else if (!boundedSocketHashMap.contains(socket)) {
         throw new UnboundSocketException(socket)
       }
-      // remove from queue
       conn = boundedSocketHashMap.getOrElse(socket, null)
     }
+    // remove from queue
     conn.semaphoreQueue.acquire
     var tuple: (InetAddress, Int, InetAddress, Int) = null
     var newConn: TCPConnection = null
@@ -187,11 +187,41 @@ class TCP(nodeInterface: ip.NodeInterface) {
   }
 
   def virRead(socket: Int, numbytes: Int): Array[Byte] = {
-    null
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        throw new UnboundSocketException(socket)
+      }
+      val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+      if (!conn.isEstablished) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
+
+      conn.recvBuf.read(numbytes)
+    }
   }
 
   def virWrite(socket: Int, buf: Array[Byte]): Int = {
-    1
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        throw new UnboundSocketException(socket)
+      }
+      val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+      if (!conn.isEstablished) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
+
+      conn.sendBuf.write(buf)
+    }
   }
 
   def virShutDown(socket: Int, sdType: Int) {
