@@ -13,9 +13,8 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
   val DefaultFlowBuffSize = 1024 * 1024
   val DefaultMultiplexingBuffSize = 10 * 1024 * 1024
-  
-  
-  val DefaultSlidingWindow = 10 *1024
+
+  val DefaultSlidingWindow = 10 * 1024
   val DefaultMSS = 1024
 
   val socketLeftBound = 3
@@ -158,32 +157,33 @@ class TCP(nodeInterface: ip.NodeInterface) {
       conn = boundedSocketHashMap.getOrElse(socket, null)
     }
     conn.semaphoreQueue.acquire
-    if (!conn.pendingQueue.isEmpty) {
-      val (tuple, newConn) = conn.pendingQueue.head
+    var tuple: (InetAddress, Int, InetAddress, Int) = null
+    var newConn: TCPConnection = null
+    conn.synchronized {
+      tuple = conn.pendingQueue.head._1
+      newConn = conn.pendingQueue.head._2
       conn.pendingQueue.remove(tuple)
-
-      // assign new socket
-      val newSocket = virSocket()
-      newConn.setSocket(newSocket)
-
-      this.synchronized {
-        // put into map
-        boundedSocketHashMap.put(newSocket, newConn)
-        clientHashMap.put(tuple, newConn)
-      }
-
-      newConn.setState(TCPState.SYN_RECV)
-      val seg = newConn.generateTCPSegment
-
-      seg.head.syn = 1
-      seg.head.ack = 1
-
-      multiplexingBuff.bufferWrite(newConn.getSrcIP, newConn.getDstIP, seg)
-
-      (newSocket, conn.getDstPort, conn.getDstIP)
-    } else {
-      null
     }
+
+    // assign new socket
+    val newSocket = virSocket()
+    newConn.setSocket(newSocket)
+
+    this.synchronized {
+      // put into map
+      boundedSocketHashMap.put(newSocket, newConn)
+      clientHashMap.put(tuple, newConn)
+    }
+
+    newConn.setState(TCPState.SYN_RECV)
+    val seg = newConn.generateTCPSegment
+
+    seg.head.syn = 1
+    seg.head.ack = 1
+
+    multiplexingBuff.bufferWrite(newConn.getSrcIP, newConn.getDstIP, seg)
+
+    (newSocket, conn.getDstPort, conn.getDstIP)
   }
 
   def virRead(socket: Int, numbytes: Int): Array[Byte] = {

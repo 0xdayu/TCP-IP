@@ -33,6 +33,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   val pendingQueue = new LinkedHashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
   val semaphoreQueue = new Semaphore(0)
+  
+  val PendingQueueSize = 65535 
 
   var dataSendingThread: Thread = _
 
@@ -218,7 +220,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         case TCPState.LAST_ACK =>
         case TCPState.LISTEN =>
           if (seg.head.syn == 1 && seg.payLoad.length == 0) {
-            if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort))) {
+            if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort)) && pendingQueue.size <= this.PendingQueueSize) {
               val conn = new TCPConnection(-1, seg.head.dstPort, tcp)
               conn.dstIP = srcip
               conn.dstPort = seg.head.srcPort
