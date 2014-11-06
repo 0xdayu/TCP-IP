@@ -206,7 +206,38 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       state match {
         case TCPState.CLOSE =>
         case TCPState.ESTABLISHED =>
+          if (seg.head.ack == 1) {
+            // receive the data
+            var start = this.ackNum
+            var end = increaseNumber(start, this.recvBuf.getSliding)
 
+            if (start <= end && seg.head.seqNum >= start && seg.head.seqNum <= end) {
+              this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad)._1)
+            } else if (start > end && (seg.head.seqNum >= start || seg.head.seqNum <= end)) {
+              if (seg.head.seqNum >= start) {
+                this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad)._1)
+              } else {
+                val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.seqNum
+                this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(offset.asInstanceOf[Int], seg.payLoad)._1)
+              }
+            }
+
+            // deal with flight sending data
+            start = this.seqNum
+            end = increaseNumber(start, this.sendBuf.getSliding)
+            if (start <= end && seg.head.ackNum >= start && seg.head.ackNum <= end) {
+              this.sendBuf.removeFlightData((seg.head.ackNum - start).asInstanceOf[Int])
+              this.seqNum = seg.head.ackNum
+            } else if (start > end && (seg.head.ackNum >= start || seg.head.seqNum <= end)) {
+              if (seg.head.ackNum >= start) {
+                this.sendBuf.removeFlightData((seg.head.ackNum - start).asInstanceOf[Int])
+              } else {
+                val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.ackNum
+                this.sendBuf.removeFlightData(offset.asInstanceOf[Int])
+              }
+              this.seqNum = seg.head.ackNum
+            }
+          }
         case TCPState.SYN_SENT =>
           // expect to get segment with syn+ack (3 of 3 handshakes)
           if (seg.head.syn == 1 && seg.head.ack == 1 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.payLoad.length == 0) {

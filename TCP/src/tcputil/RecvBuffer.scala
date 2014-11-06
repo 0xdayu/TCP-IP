@@ -90,7 +90,7 @@ class RecvBuffer(capacity: Int, sliding: Int) {
     }
   }
 
-  def getSliding() {
+  def getSliding(): Int = {
     this.synchronized {
       slide
     }
