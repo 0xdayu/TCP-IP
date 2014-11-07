@@ -25,10 +25,16 @@ class RecvBuffer(capacity: Int, sliding: Int) {
   def write(off: Int, buf: Array[Byte]): (Int, Int) = {
     this.synchronized {
       // TODO: sliding window may change
-      val realLen = math.min(slide - linkListSize, buf.length)
+      if (buf.length == 0) {
+        return (0, 0)
+      }
+
       if (slide <= linkListSize) {
         return (0, 0)
       }
+
+      val realLen = math.min(slide - linkListSize, buf.length)
+
       val data = buf.slice(0, realLen)
       var originSize = realLen
 
@@ -93,6 +99,12 @@ class RecvBuffer(capacity: Int, sliding: Int) {
   def getSliding(): Int = {
     this.synchronized {
       slide
+    }
+  }
+
+  def getAvailable(): Int = {
+    this.synchronized {
+      available
     }
   }
 }

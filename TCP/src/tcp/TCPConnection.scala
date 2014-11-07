@@ -130,7 +130,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.seqNum = this.seqNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.syn = 1
-      newTCPHead.winSize = this.recvBuf.available
+      newTCPHead.winSize = this.recvBuf.getAvailable
       // checksum will update later
 
       newTCPSegment.head = newTCPHead
@@ -151,7 +151,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.seqNum = this.seqNum
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
-      newTCPHead.winSize = this.recvBuf.available
+      newTCPHead.winSize = this.recvBuf.getAvailable
       // checksum will update later
 
       newTCPSegment.head = newTCPHead
@@ -168,10 +168,10 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       // initial tcp packet
       newTCPHead.srcPort = this.srcPort
       newTCPHead.dstPort = this.dstPort
-      newTCPHead.seqNum = increaseNumber(this.seqNum, this.sendBuf.getSendLength)
+      newTCPHead.seqNum = this.seqNum
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
-      newTCPHead.winSize = this.recvBuf.available
+      newTCPHead.winSize = this.recvBuf.getAvailable
       // checksum will update later
 
       // set all the acks
@@ -189,9 +189,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
     newTCPHead.srcPort = seg.head.dstPort
     newTCPHead.dstPort = seg.head.srcPort
     newTCPHead.seqNum = this.seqNum
-    newTCPHead.ackNum = increaseNumber(this.ackNum, 1)
+    newTCPHead.ackNum = this.ackNum
     newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
-    newTCPHead.winSize = this.recvBuf.available
+    newTCPHead.winSize = this.recvBuf.getAvailable
     val newTCPSegment = new TCPSegment
 
     newTCPSegment.head = newTCPHead
@@ -206,7 +206,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       state match {
         case TCPState.CLOSE =>
         case TCPState.ESTABLISHED =>
-          if (seg.head.ack == 1) {
+          if (seg.head.ack == 1 && seg.head.syn == 0) {
             // receive the data
             var start = this.ackNum
             var end = increaseNumber(start, this.recvBuf.getSliding)
@@ -255,7 +255,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
           }
         case TCPState.SYN_RECV =>
-          if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.seqNum == this.ackNum) {
+          if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.seqNum == this.ackNum && seg.head.ackNum == increaseNumber(this.seqNum, 1)) {
             this.seqNum = increaseNumber(this.seqNum, 1)
 
             setState(TCPState.ESTABLISHED)
@@ -352,6 +352,12 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def getDstPort(): Int = {
     this.synchronized {
       dstPort
+    }
+  }
+
+  def getAck(): Long = {
+    this.synchronized {
+      ackNum
     }
   }
 }

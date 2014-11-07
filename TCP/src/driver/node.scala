@@ -300,7 +300,7 @@ object node {
 
           var source: BufferedReader = null
           try {
-            source = new BufferedReader(new FileReader("test.txt"))
+            source = new BufferedReader(new FileReader(filename))
           } catch {
             case _: Throwable => println("The wrong path of file: " + filename)
           }
@@ -335,7 +335,7 @@ object node {
 
         var source: PrintWriter = null
         try {
-          source = new PrintWriter(new File("test.txt"))
+          source = new PrintWriter(new File(filename))
         } catch {
           case _: Throwable => println("The wrong path of file: " + filename)
         }

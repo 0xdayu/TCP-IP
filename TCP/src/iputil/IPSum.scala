@@ -14,7 +14,7 @@ object IPSum {
     }
 
     if (len == 1) {
-      sum += (packet(i) & 0xff).asInstanceOf[Long]
+      sum += (packet(i) << 8 & 0xff00).asInstanceOf[Long]
     }
 
     sum = (sum >> 16) + (sum & 0xffff)

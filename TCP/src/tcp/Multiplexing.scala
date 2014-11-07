@@ -15,9 +15,9 @@ class Multiplexing(nodeInterface: NodeInterface, tcp: TCP) extends Runnable {
     while (done) {
       val tuple = tcp.multiplexingBuff.bufferRead
       if (tuple != null) {
-        println("Multiplexing start")
-        PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
-        println("Multiplexing end")
+        //        println("Multiplexing start")
+        //        PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
+        //        println("Multiplexing end")
 
         executors.execute(new SendTCPSegmentHandler(tuple, nodeInterface, tcp))
       }

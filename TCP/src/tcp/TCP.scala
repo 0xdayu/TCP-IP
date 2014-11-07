@@ -11,10 +11,13 @@ class TCP(nodeInterface: ip.NodeInterface) {
   // file descriptor, 0 - input, 1 - output, 2 - error
   // start from 3 to 65535 (2^16 - 1) or less
 
-  val DefaultFlowBuffSize = 1024 * 1024
+  // 2^16 - 1
+  val DefaultFlowBuffSize = 64 * 1024 - 1
   val DefaultMultiplexingBuffSize = 10 * 1024 * 1024
 
+  // less than tcp segment window
   val DefaultSlidingWindow = 10 * 1024
+  // less than mtu
   val DefaultMSS = 1024
 
   val socketLeftBound = 3
@@ -138,7 +141,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       // wait that state
       conn.waitState
 
-      println("Established connection succesfully")
+      // println("Established connection succesfully")
     }
   }
 
