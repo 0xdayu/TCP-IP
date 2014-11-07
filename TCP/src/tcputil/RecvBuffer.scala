@@ -21,19 +21,24 @@ class RecvBuffer(capacity: Int, sliding: Int) {
     }
   }
 
-  // first indicates to move how many bytes, second is the byte we write
-  def write(off: Int, buf: Array[Byte]): (Int, Int) = {
+  // return to move how many bytes
+  def write(off: Int, buf: Array[Byte]): Int = {
     this.synchronized {
       // TODO: sliding window may change
       if (buf.length == 0) {
-        return (0, 0)
+        return 0
       }
 
       if (slide <= linkListSize) {
-        return (0, 0)
+        return 0
       }
 
-      val realLen = math.min(slide - linkListSize, buf.length)
+      // off will not larger than slide
+      val realLen = math.min(slide - off, buf.length)
+      
+      if (realLen == 0) {
+        return 0
+      }
 
       val data = buf.slice(0, realLen)
       var originSize = realLen
@@ -46,26 +51,31 @@ class RecvBuffer(capacity: Int, sliding: Int) {
       var templinkList: Array[(Int, Int, Array[Byte])] = new Array[(Int, Int, Array[Byte])](0)
 
       for (node <- linkList) {
-        if (addNode._2 < node._1) {
-          if (addNode._2 == node._1 - 1) {
+        if (addNode._2 <= node._1) {
+          if (addNode._2 == node._1) {
             addNode = (addNode._1, node._2, addNode._3 ++ node._3)
           } else {
             templinkList = templinkList :+ addNode
             addNode = node
           }
-        } else if (addNode._1 > node._2) {
-          if (addNode._1 == node._2 + 1) {
+        } else if (addNode._1 >= node._2) {
+          if (addNode._1 == node._2) {
             addNode = (node._1, addNode._2, node._3 ++ addNode._3)
           } else {
             templinkList = templinkList :+ node
           }
         } else {
-          if (addNode._1 <= node._1 && addNode._2 <= node._2) {
+          if (addNode._1 >= node._1 && addNode._2 <= node._2 ){
+            addNode = node
+            originSize = 0
+          } else if (addNode._1 <= node._1 && addNode._2 >= node._2){
+            // addNode = addNode
+          } else if (addNode._1 <= node._1 && addNode._2 <= node._2) {
             addNode = (addNode._1, node._2, addNode._3.slice(0, node._1 - addNode._1) ++ node._3)
-            originSize -= (node._1 - addNode._2)
+            originSize -= (addNode._2 - node._1)
           } else {
             addNode = (node._1, addNode._2, node._3.slice(0, addNode._1 - node._1) ++ addNode._3)
-            originSize -= (addNode._1 - node._2)
+            originSize -= (node._2 - addNode._1)
           }
         }
       }
@@ -86,7 +96,7 @@ class RecvBuffer(capacity: Int, sliding: Int) {
         linkList = linkList.slice(1, linkList.length)
       }
 
-      (templength, realLen)
+      templength
     }
   }
 

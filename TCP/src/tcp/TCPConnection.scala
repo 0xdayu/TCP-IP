@@ -212,13 +212,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             var end = increaseNumber(start, this.recvBuf.getSliding)
 
             if (start <= end && seg.head.seqNum >= start && seg.head.seqNum <= end) {
-              this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad)._1)
+              this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad))
             } else if (start > end && (seg.head.seqNum >= start || seg.head.seqNum <= end)) {
               if (seg.head.seqNum >= start) {
-                this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad)._1)
+                this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad))
               } else {
                 val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.seqNum
-                this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(offset.asInstanceOf[Int], seg.payLoad)._1)
+                this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(offset.asInstanceOf[Int], seg.payLoad))
               }
             }
 
@@ -260,7 +260,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
             setState(TCPState.ESTABLISHED)
 
-            this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(0, seg.payLoad)._1)
+            this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(0, seg.payLoad))
 
             // new send thread
             dataSendingThread = new Thread(new DataSending(this, tcp))

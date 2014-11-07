@@ -38,8 +38,14 @@ class SendBuffer(capacity: Int, sliding: Int) {
   def removeFlightData(len: Int) {
     this.synchronized {
       if (len != 0) {
-        sendBuf = sendBuf.slice(len, sendBuf.length)
-        available += len
+        if (len <= sendBuf.length) {
+          sendBuf = sendBuf.slice(len, sendBuf.length)
+          available += len
+        } else {
+          // need to remove bytes more than sent bytes
+          available += sendBuf.length
+          sendBuf = new Array[Byte](0)
+        }
       }
     }
   }

@@ -95,6 +95,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   }
 
   def virConnect(socket: Int, addr: InetAddress, port: Int) {
+    // TODO: BUG: when connect to an invalid IP and invalid port
     this.synchronized {
       if (socket < socketLeftBound || socket > socketRightBound) {
         throw new InvalidSocketException(socket)
