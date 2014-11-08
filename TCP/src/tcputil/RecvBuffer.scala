@@ -1,7 +1,5 @@
 package tcputil
 
-import java.util.concurrent.Semaphore
-
 class RecvBuffer(capacity: Int, sliding: Int) {
   var recvBuf: Array[Byte] = new Array[Byte](0)
 
