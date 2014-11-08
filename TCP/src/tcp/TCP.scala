@@ -198,6 +198,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   }
 
   def virRead(socket: Int, numbytes: Int): Array[Byte] = {
+    var conn: TCPConnection = null
     this.synchronized {
       if (socket < socketLeftBound || socket > socketRightBound) {
         throw new InvalidSocketException(socket)
@@ -206,17 +207,17 @@ class TCP(nodeInterface: ip.NodeInterface) {
       } else if (!boundedSocketHashMap.contains(socket)) {
         throw new UnboundSocketException(socket)
       }
-      val conn = boundedSocketHashMap.getOrElse(socket, null)
+      conn = boundedSocketHashMap.getOrElse(socket, null)
 
       if (!conn.isEstablished) {
         throw new ErrorTCPStateException(conn.getState)
       }
-
-      conn.recvBuf.read(numbytes)
     }
+    conn.recvBuf.read(numbytes)
   }
 
   def virWrite(socket: Int, buf: Array[Byte]): Int = {
+    var conn: TCPConnection = null
     this.synchronized {
       if (socket < socketLeftBound || socket > socketRightBound) {
         throw new InvalidSocketException(socket)
@@ -225,14 +226,14 @@ class TCP(nodeInterface: ip.NodeInterface) {
       } else if (!boundedSocketHashMap.contains(socket)) {
         throw new UnboundSocketException(socket)
       }
-      val conn = boundedSocketHashMap.getOrElse(socket, null)
+      conn = boundedSocketHashMap.getOrElse(socket, null)
 
       if (!conn.isEstablished) {
         throw new ErrorTCPStateException(conn.getState)
       }
 
-      conn.sendBuf.write(buf)
     }
+    conn.sendBuf.write(buf)
   }
 
   def virShutDown(socket: Int, sdType: Int) {

@@ -1,5 +1,7 @@
 package tcputil
 
+import java.util.concurrent.Semaphore
+
 class RecvBuffer(capacity: Int, sliding: Int) {
   var recvBuf: Array[Byte] = new Array[Byte](0)
 
@@ -12,6 +14,9 @@ class RecvBuffer(capacity: Int, sliding: Int) {
 
   def read(size: Int): Array[Byte] = {
     this.synchronized {
+      if (recvBuf.length == 0) {
+        this.wait
+      }
       val realLen = math.min(recvBuf.length, size)
       val result = recvBuf.slice(0, realLen)
       recvBuf = recvBuf.slice(realLen, recvBuf.length)
@@ -90,6 +95,9 @@ class RecvBuffer(capacity: Int, sliding: Int) {
       var templength = 0
 
       if (linkList(0)._1 == 0) {
+        if (recvBuf.length == 0) {
+          this.notify
+        }
         recvBuf = recvBuf ++ linkList(0)._3
         templength = linkList(0)._3.length
         linkListSize -= linkList(0)._3.length

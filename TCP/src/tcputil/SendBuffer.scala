@@ -11,6 +11,9 @@ class SendBuffer(capacity: Int, sliding: Int) {
 
   def write(buf: Array[Byte]): Int = {
     this.synchronized {
+      if (available == 0) {
+        this.wait
+      }
       val realLen = math.min(buf.length, available)
       writeBuf ++= buf.slice(0, realLen)
       available -= realLen
@@ -38,6 +41,9 @@ class SendBuffer(capacity: Int, sliding: Int) {
   def removeFlightData(len: Int) {
     this.synchronized {
       if (len != 0) {
+        if (available == 0) {
+          this.notify
+        }
         if (len <= sendBuf.length) {
           sendBuf = sendBuf.slice(len, sendBuf.length)
           available += len
