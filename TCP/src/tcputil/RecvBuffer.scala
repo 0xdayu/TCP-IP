@@ -35,7 +35,7 @@ class RecvBuffer(capacity: Int, sliding: Int) {
 
       // off will not larger than slide
       val realLen = math.min(slide - off, buf.length)
-      
+
       if (realLen == 0) {
         return 0
       }
@@ -65,10 +65,10 @@ class RecvBuffer(capacity: Int, sliding: Int) {
             templinkList = templinkList :+ node
           }
         } else {
-          if (addNode._1 >= node._1 && addNode._2 <= node._2 ){
+          if (addNode._1 >= node._1 && addNode._2 <= node._2) {
             addNode = node
             originSize = 0
-          } else if (addNode._1 <= node._1 && addNode._2 >= node._2){
+          } else if (addNode._1 <= node._1 && addNode._2 >= node._2) {
             // addNode = addNode
           } else if (addNode._1 <= node._1 && addNode._2 <= node._2) {
             addNode = (addNode._1, node._2, addNode._3.slice(0, node._1 - addNode._1) ++ node._3)

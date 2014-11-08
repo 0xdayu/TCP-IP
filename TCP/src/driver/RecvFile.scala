@@ -5,19 +5,21 @@ import java.io._
 
 class RecvFile(socket: Int, source: PrintWriter, tcp: TCP) extends Runnable {
   val BufSize = 1024
-  var off = 0
+  var buf: Array[Byte] = _
 
   def run() {
     try {
       val (newSocket, dstPort, dstIP) = tcp.virAccept(socket)
+      // TODO: close
       tcp.virClose(socket)
-
-      var buf = tcp.virRead(socket, BufSize)
-      while (buf.length != 0) {
-        val str = new String(buf.map(_.toChar))
-        source.write(str, off, str.length)
-        off += str.length
-        buf = tcp.virRead(socket, BufSize)
+      // TODO: close later
+      while (true) {
+        buf = tcp.virRead(newSocket, BufSize)
+        if (buf.length != 0) {
+          val str = new String(buf.map(_.toChar))
+          source.write(str, 0, str.length)
+          source.flush
+        }
       }
 
       tcp.virClose(newSocket)

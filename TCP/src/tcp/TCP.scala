@@ -180,6 +180,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
     }
 
     newConn.setState(TCPState.SYN_RECV)
+
+    // set wait state
+    newConn.setWaitState(TCPState.ESTABLISHED)
+
     val seg = newConn.generateTCPSegment
 
     seg.head.syn = 1
@@ -187,7 +191,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
     multiplexingBuff.bufferWrite(newConn.getSrcIP, newConn.getDstIP, seg)
 
-    (newSocket, conn.getDstPort, conn.getDstIP)
+    // wait that state
+    newConn.waitState
+
+    (newSocket, newConn.getDstPort, newConn.getDstIP)
   }
 
   def virRead(socket: Int, numbytes: Int): Array[Byte] = {

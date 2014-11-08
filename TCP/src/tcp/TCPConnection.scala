@@ -168,7 +168,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       // initial tcp packet
       newTCPHead.srcPort = this.srcPort
       newTCPHead.dstPort = this.dstPort
-      newTCPHead.seqNum = this.seqNum
+      newTCPHead.seqNum = increaseNumber(this.seqNum, this.sendBuf.getSendLength - payload.length)
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.winSize = this.recvBuf.getAvailable
