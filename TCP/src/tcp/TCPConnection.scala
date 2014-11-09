@@ -169,9 +169,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload))
         needReply = false
       } else {
-        println("wait start")
         this.wait
-        println("wait end")
       }
     }
   }

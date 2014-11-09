@@ -1,6 +1,5 @@
 package tcputil
 
-import java.util.ArrayList
 import tcp.TCPConnection
 
 class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
@@ -19,8 +18,6 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
       realLen = math.min(buf.length, available)
       writeBuf ++= buf.slice(0, realLen)
       available -= realLen
-
-      realLen
     }
 
     // notify the data sending
