@@ -1,8 +1,9 @@
 package tcputil
 
 import java.util.ArrayList
+import tcp.TCPConnection
 
-class SendBuffer(capacity: Int, sliding: Int) {
+class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
   var writeBuf: Array[Byte] = new Array[Byte](0)
   var sendBuf: Array[Byte] = new Array[Byte](0)
 
@@ -10,16 +11,22 @@ class SendBuffer(capacity: Int, sliding: Int) {
   var slide: Int = sliding
 
   def write(buf: Array[Byte]): Int = {
+    var realLen: Int = 0
     this.synchronized {
       if (available == 0) {
         this.wait
       }
-      val realLen = math.min(buf.length, available)
+      realLen = math.min(buf.length, available)
       writeBuf ++= buf.slice(0, realLen)
       available -= realLen
 
       realLen
     }
+
+    // notify the data sending
+    conn.wakeUpDataSend
+
+    realLen
   }
 
   def read(size: Int): Array[Byte] = {
@@ -54,6 +61,9 @@ class SendBuffer(capacity: Int, sliding: Int) {
         }
       }
     }
+
+    // notify the data sending
+    conn.wakeUpDataSend
   }
 
   def getSendLength(): Int = {
