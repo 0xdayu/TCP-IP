@@ -16,4 +16,10 @@ class SynBitSet {
       bitSet.set(bitIndex)
     }
   }
+  
+  def set(bitIndex: Int, value: Boolean) {
+    this.synchronized {
+      bitSet.set(bitIndex, value)
+    }
+  }
 }

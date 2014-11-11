@@ -20,6 +20,9 @@ class TCP(nodeInterface: ip.NodeInterface) {
   // less than mtu
   val DefaultMSS = 1024
 
+  // (ms) 
+  val DefaultMSL = 10 * 1000
+
   val socketLeftBound = 3
   val socketRightBound = 65535
 
@@ -237,11 +240,64 @@ class TCP(nodeInterface: ip.NodeInterface) {
   }
 
   def virShutDown(socket: Int, sdType: Int) {
+    sdType match {
+      case 1 =>
+      case 2 =>
+      case 3 =>
+        virClose(socket)
+    }
 
   }
 
   def virClose(socket: Int) {
+    var conn: TCPConnection = null
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        throw new UnboundSocketException(socket)
+      }
 
+      conn = boundedSocketHashMap.getOrElse(socket, null)
+
+      if (!conn.isEstablished) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
+    }
+
+    conn.sendBuf.waitAvailable
+
+    conn.setState(TCPState.FIN_WAIT1)
+
+    // set wait state
+    conn.setWaitState(TCPState.CLOSE)
+
+    val seg = conn.generateTCPSegment
+
+    seg.head.fin = 1
+    seg.head.ack = 1
+
+    multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, seg)
+
+    // wait that state
+    conn.waitState
+
+    this.synchronized {
+      // remove
+      socketArray.set(socket, false)
+      boundedSocketHashMap.remove(socket)
+      
+      if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
+        clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
+      } else {
+        serverHashMap.remove(socket)
+      }
+
+      // stop the thread for application
+      conn.dataSendingThread.stop
+    }
   }
 
   def virReadAll(socket: Int, numbytes: Int): Array[Byte] = {

@@ -1,6 +1,7 @@
 package tcputil
 
 import tcp.TCPConnection
+import java.util.concurrent.Semaphore
 
 class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
   var writeBuf: Array[Byte] = new Array[Byte](0)
@@ -8,6 +9,10 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
 
   var available: Int = capacity
   var slide: Int = sliding
+
+  val semaphoreCheckAvailalbe = new Semaphore(0)
+
+  var busy: Boolean = false
 
   def write(buf: Array[Byte]): Int = {
     var realLen: Int = 0
@@ -56,6 +61,9 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
           available += sendBuf.length
           sendBuf = new Array[Byte](0)
         }
+        if (available == capacity && busy) {
+          this.semaphoreCheckAvailalbe.release
+        }
       }
     }
 
@@ -78,6 +86,22 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
   def getSliding(): Int = {
     this.synchronized {
       slide
+    }
+  }
+
+  def waitAvailable() {
+    this.synchronized {
+      if (available == capacity) {
+        return
+      }
+      this.busy = true
+    }
+    this.semaphoreCheckAvailalbe.acquire
+  }
+  
+  def isEmpty() : Boolean = {
+    this.synchronized{
+      available == capacity
     }
   }
 }
