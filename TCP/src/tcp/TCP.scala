@@ -89,6 +89,11 @@ class TCP(nodeInterface: ip.NodeInterface) {
         throw new UnboundSocketException(socket)
       } else {
         val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+        if (conn.zombie) {
+          throw new ErrorTCPStateException(conn.getState)
+        }
+
         if (!conn.setState(TCPState.LISTEN)) {
           throw new ErrorTCPStateException(conn.getState)
         } else {
@@ -99,7 +104,11 @@ class TCP(nodeInterface: ip.NodeInterface) {
   }
 
   def virConnect(socket: Int, addr: InetAddress, port: Int) {
-    // TODO: BUG: when connect to an invalid IP and invalid port
+    val ip = nodeInterface.getSrcAddr(addr)
+    if (ip == null) {
+      throw new DestinationUnreachable(addr)
+    }
+
     this.synchronized {
       if (socket < socketLeftBound || socket > socketRightBound) {
         throw new InvalidSocketException(socket)
@@ -125,10 +134,11 @@ class TCP(nodeInterface: ip.NodeInterface) {
       this.synchronized {
         // 1 of 3 3-way handshake
         conn = boundedSocketHashMap.getOrElse(socket, null)
-        val ip = nodeInterface.getSrcAddr(addr)
-        if (ip == null) {
-          throw new DestinationUnreachable(addr)
+
+        if (conn.zombie) {
+          throw new ErrorTCPStateException(conn.getState)
         }
+
         conn.setSrcIP(ip)
         conn.setDstIP(addr)
         conn.setDstPort(port)
@@ -163,6 +173,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
         throw new UnboundSocketException(socket)
       }
       conn = boundedSocketHashMap.getOrElse(socket, null)
+
+      if (conn.zombie) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
     }
     // remove from queue
     conn.semaphoreQueue.acquire
@@ -220,6 +234,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
       }
       conn = boundedSocketHashMap.getOrElse(socket, null)
 
+      if (conn.zombie) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
+
       if (!conn.isEstablished) {
         throw new ErrorTCPStateException(conn.getState)
       }
@@ -238,6 +256,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
         throw new UnboundSocketException(socket)
       }
       conn = boundedSocketHashMap.getOrElse(socket, null)
+
+      if (conn.zombie) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
 
       if (!conn.isEstablished) {
         throw new ErrorTCPStateException(conn.getState)
@@ -270,30 +292,32 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
       conn = boundedSocketHashMap.getOrElse(socket, null)
 
+      // set to zombie status
+      conn.zombie = true
+
       if (conn.isServerAndListen) {
         conn.setState(TCPState.CLOSE)
-
-        // remove
-        portArray.set(conn.getSrcPort, false)
-        socketArray.set(socket, false)
-        boundedSocketHashMap.remove(socket)
-        serverHashMap.remove(socket)
 
         conn.semaphoreQueue.release
         return
       }
 
-      if (!conn.isEstablished) {
+      if (!conn.isEstablished && !conn.isCloseWait) {
         throw new ErrorTCPStateException(conn.getState)
       }
     }
 
     conn.sendBuf.waitAvailable
 
-    conn.setState(TCPState.FIN_WAIT1)
-
-    // set wait state
-    conn.setWaitState(TCPState.CLOSE)
+    if (conn.isEstablished) {
+      conn.setState(TCPState.FIN_WAIT1)
+      // set wait state
+      conn.setWaitState(TCPState.FIN_WAIT2)
+    } else {
+      conn.setState(TCPState.LAST_ACK)
+      // set wait state
+      conn.setWaitState(TCPState.CLOSE)
+    }
 
     val seg = conn.generateTCPSegment
 
@@ -304,22 +328,6 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
     // wait that state
     conn.waitState
-
-    this.synchronized {
-      // remove
-      portArray.set(conn.getSrcPort, false)
-      socketArray.set(socket, false)
-      boundedSocketHashMap.remove(socket)
-
-      if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
-        clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
-      } else {
-        serverHashMap.remove(socket)
-      }
-
-      // stop the thread for application
-      conn.dataSendingThread.stop
-    }
   }
 
   def virReadAll(socket: Int, numbytes: Int): Array[Byte] = {
@@ -378,6 +386,27 @@ class TCP(nodeInterface: ip.NodeInterface) {
             println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState)
           }
         }
+      }
+    }
+  }
+
+  def removeFromTCP(conn: TCPConnection) {
+    this.synchronized {
+      portArray.set(conn.getSrcPort, false)
+      socketArray.set(conn.socket, false)
+      boundedSocketHashMap.remove(conn.socket)
+
+      if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
+        clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
+      } else {
+        serverHashMap.remove(conn.socket)
+      }
+
+      // stop the thread for application
+      try {
+        conn.dataSendingThread.stop
+      } catch {
+        case e: Exception => // nothing here
       }
     }
   }

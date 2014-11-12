@@ -12,6 +12,7 @@ class RecvTCPSegmentHandler(tuple: (InetAddress, InetAddress, TCPSegment), tcp: 
     if ((sum & 0xfff) != 0) {
       println("This packet has wrong tcp checksum!")
     } else {
+      var conn: TCPConnection = null
       tcp.synchronized {
         val client = tcp.clientHashMap.getOrElse((tuple._2, seg.head.dstPort, tuple._1, seg.head.srcPort), null)
         if (client == null) {
@@ -22,13 +23,18 @@ class RecvTCPSegmentHandler(tuple: (InetAddress, InetAddress, TCPSegment), tcp: 
             generateRSTSegment(tuple._3)
           } else {
             if (server.isServerAndListen) {
-              server.connectionBehavior(tuple._1, tuple._2, seg)
+              conn = server
             }
           }
         } else {
           // must be client
-          client.connectionBehavior(tuple._1, tuple._2, seg)
+          conn = client
         }
+      }
+
+      // make sure connection can be got
+      if (conn != null) {
+        conn.connectionBehavior(tuple._1, tuple._2, seg)
       }
     }
 

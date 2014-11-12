@@ -39,6 +39,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   var dataSendingThread: Thread = _
   var needReply = false
 
+  // flag for close
+  var zombie = false
+
   val previousState = new HashMap[TCPState.Value, Array[TCPState.Value]]
   val nextState = new HashMap[TCPState.Value, Array[TCPState.Value]]
 
@@ -68,6 +71,11 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   nextState.put(TCPState.LAST_ACK, Array(TCPState.CLOSE))
 
   def setState(next: TCPState.Value): Boolean = {
+    // remove itself
+    if (next == TCPState.CLOSE) {
+      tcp.removeFromTCP(this)
+    }
+
     this.synchronized {
       var ret = false
       if (nextState.getOrElse(state, null).contains(next)) {
@@ -116,6 +124,12 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def isEstablished(): Boolean = {
     this.synchronized {
       state == TCPState.ESTABLISHED
+    }
+  }
+
+  def isCloseWait(): Boolean = {
+    this.synchronized {
+      state == TCPState.CLOSE_WAIT
     }
   }
 
@@ -264,6 +278,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   // based on current state, expect proper segment and behave based on state machine
   def connectionBehavior(srcip: InetAddress, dstip: InetAddress, seg: TCPSegment) {
+    var timeWait = false
+
     this.synchronized {
       state match {
         case TCPState.CLOSE =>
@@ -280,20 +296,6 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
               tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
 
               setState(TCPState.CLOSE_WAIT)
-
-              Thread.sleep(100)
-              if (sendBuf.isEmpty) {
-
-                val newSeg = replyTCPSegment(seg)
-                newSeg.head.fin = 1
-                newSeg.head.ack = 1
-
-                tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
-
-                this.dataSendingThread.stop
-
-                setState(TCPState.LAST_ACK)
-              }
             }
           }
         case TCPState.CLOSE_WAIT =>
@@ -368,10 +370,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
             setState(TCPState.TIME_WAIT)
 
-            // time out
-            Thread.sleep(2 * tcp.DefaultMSL)
-
-            this.setState(TCPState.CLOSE)
+            timeWait = true
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
             recvData(seg)
           }
@@ -387,10 +386,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
             setState(TCPState.TIME_WAIT)
 
-            // time out
-            Thread.sleep(2 * tcp.DefaultMSL)
-
-            this.setState(TCPState.CLOSE)
+            timeWait = true
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
             recvData(seg)
           }
@@ -401,18 +397,6 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         case TCPState.LAST_ACK =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
             this.setState(TCPState.CLOSE)
-
-            tcp.synchronized {
-              tcp.portArray.set(srcPort, false)
-              tcp.socketArray.set(socket, false)
-              tcp.boundedSocketHashMap.remove(socket)
-
-              if (tcp.clientHashMap.contains((srcIP, srcPort, dstIP, dstPort))) {
-                tcp.clientHashMap.remove((srcIP, srcPort, dstIP, dstPort))
-              } else {
-                tcp.serverHashMap.remove(socket)
-              }
-            }
           }
         case TCPState.LISTEN =>
           if (seg.head.syn == 1 && seg.payLoad.length == 0 && seg.payLoad.length == 0) {
@@ -434,13 +418,17 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
             setState(TCPState.TIME_WAIT)
 
-            // time out
-            Thread.sleep(2 * tcp.DefaultMSL)
-
-            this.setState(TCPState.CLOSE)
+            timeWait = true
           }
         //case _ => throw new UnknownTCPStateException
       }
+    }
+
+    // time out to close and remove this connection
+    if (timeWait == true) {
+      Thread.sleep(2 * tcp.DefaultMSL)
+
+      this.setState(TCPState.CLOSE)
     }
   }
 
