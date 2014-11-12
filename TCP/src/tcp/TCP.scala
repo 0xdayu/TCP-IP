@@ -72,6 +72,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       } else if (portArray.get(port)) {
         throw new UsedPortException(port)
       } else {
+        portArray.set(port)
         val newCon = new TCPConnection(socket, port, this)
         boundedSocketHashMap.put(socket, newCon)
       }
@@ -110,6 +111,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
         if (portNumber == -1) {
           throw new PortUsedUpException
         }
+        portArray.set(portNumber)
         val newCon = new TCPConnection(socket, portNumber, this)
         boundedSocketHashMap.put(socket, newCon)
       }
@@ -164,40 +166,46 @@ class TCP(nodeInterface: ip.NodeInterface) {
     }
     // remove from queue
     conn.semaphoreQueue.acquire
-    var tuple: (InetAddress, Int, InetAddress, Int) = null
-    var newConn: TCPConnection = null
-    conn.synchronized {
-      tuple = conn.pendingQueue.head._1
-      newConn = conn.pendingQueue.head._2
-      conn.pendingQueue.remove(tuple)
+
+    if (conn.isServerAndListen) {
+
+      var tuple: (InetAddress, Int, InetAddress, Int) = null
+      var newConn: TCPConnection = null
+      conn.synchronized {
+        tuple = conn.pendingQueue.head._1
+        newConn = conn.pendingQueue.head._2
+        conn.pendingQueue.remove(tuple)
+      }
+
+      // assign new socket
+      val newSocket = virSocket
+      newConn.setSocket(newSocket)
+
+      this.synchronized {
+        // put into map
+        boundedSocketHashMap.put(newSocket, newConn)
+        clientHashMap.put(tuple, newConn)
+      }
+
+      newConn.setState(TCPState.SYN_RECV)
+
+      // set wait state
+      newConn.setWaitState(TCPState.ESTABLISHED)
+
+      val seg = newConn.generateTCPSegment
+
+      seg.head.syn = 1
+      seg.head.ack = 1
+
+      multiplexingBuff.bufferWrite(newConn.getSrcIP, newConn.getDstIP, seg)
+
+      // wait that state
+      newConn.waitState
+
+      (newSocket, newConn.getDstPort, newConn.getDstIP)
+    } else {
+      throw new SocketClosedException(socket)
     }
-
-    // assign new socket
-    val newSocket = virSocket()
-    newConn.setSocket(newSocket)
-
-    this.synchronized {
-      // put into map
-      boundedSocketHashMap.put(newSocket, newConn)
-      clientHashMap.put(tuple, newConn)
-    }
-
-    newConn.setState(TCPState.SYN_RECV)
-
-    // set wait state
-    newConn.setWaitState(TCPState.ESTABLISHED)
-
-    val seg = newConn.generateTCPSegment
-
-    seg.head.syn = 1
-    seg.head.ack = 1
-
-    multiplexingBuff.bufferWrite(newConn.getSrcIP, newConn.getDstIP, seg)
-
-    // wait that state
-    newConn.waitState
-
-    (newSocket, newConn.getDstPort, newConn.getDstIP)
   }
 
   def virRead(socket: Int, numbytes: Int): Array[Byte] = {
@@ -262,6 +270,19 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
       conn = boundedSocketHashMap.getOrElse(socket, null)
 
+      if (conn.isServerAndListen) {
+        conn.setState(TCPState.CLOSE)
+
+        // remove
+        portArray.set(conn.getSrcPort, false)
+        socketArray.set(socket, false)
+        boundedSocketHashMap.remove(socket)
+        serverHashMap.remove(socket)
+
+        conn.semaphoreQueue.release
+        return
+      }
+
       if (!conn.isEstablished) {
         throw new ErrorTCPStateException(conn.getState)
       }
@@ -286,9 +307,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
     this.synchronized {
       // remove
+      portArray.set(conn.getSrcPort, false)
       socketArray.set(socket, false)
       boundedSocketHashMap.remove(socket)
-      
+
       if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
         clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
       } else {

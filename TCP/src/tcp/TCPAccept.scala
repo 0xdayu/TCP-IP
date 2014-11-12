@@ -1,14 +1,17 @@
 package tcp
 
+import exception.SocketClosedException
+
 class TCPAccept(tcp: TCP, socket: Int) extends Runnable {
   var done = true
   def run() {
-    while (done) {
-      try {
+    try {
+      while (done) {
         tcp.virAccept(socket)
-      } catch {
-        case e: Exception => println(e.getMessage); return
       }
+    } catch {
+      case e: SocketClosedException => return
+      case e: Exception => println(e.getMessage)
     }
   }
 

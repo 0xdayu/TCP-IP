@@ -56,7 +56,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   previousState.put(TCPState.LAST_ACK, Array(TCPState.CLOSE_WAIT))
 
   nextState.put(TCPState.CLOSE, Array(TCPState.LISTEN, TCPState.SYN_SENT))
-  nextState.put(TCPState.LISTEN, Array(TCPState.SYN_RECV, TCPState.SYN_SENT))
+  nextState.put(TCPState.LISTEN, Array(TCPState.SYN_RECV, TCPState.SYN_SENT, TCPState.CLOSE))
   nextState.put(TCPState.SYN_RECV, Array(TCPState.LISTEN, TCPState.FIN_WAIT1, TCPState.ESTABLISHED))
   nextState.put(TCPState.SYN_SENT, Array(TCPState.CLOSE, TCPState.SYN_RECV, TCPState.ESTABLISHED))
   nextState.put(TCPState.ESTABLISHED, Array(TCPState.FIN_WAIT1, TCPState.CLOSE_WAIT))
@@ -271,7 +271,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
             recvData(seg)
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 1) {
-            if (seg.head.ackNum == this.seqNum && this.seqNum == seg.head.ackNum) {
+            if (seg.head.ackNum == this.seqNum && seg.head.seqNum == this.ackNum) {
               this.ackNum = increaseNumber(this.ackNum, 1)
 
               val newSeg = this.replyTCPSegment(seg)
@@ -281,6 +281,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
               setState(TCPState.CLOSE_WAIT)
 
+              Thread.sleep(100)
               if (sendBuf.isEmpty) {
 
                 val newSeg = replyTCPSegment(seg)
@@ -342,13 +343,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             dataSendingThread.start
           }
         case TCPState.FIN_WAIT1 =>
-          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && this.seqNum == seg.head.ackNum && seg.head.fin == 0) {
+          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
             this.seqNum = increaseNumber(this.seqNum, 1)
 
             setState(TCPState.FIN_WAIT2)
 
             this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(0, seg.payLoad))
-          } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && this.seqNum == seg.head.ackNum && seg.head.fin == 1) {
+          } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && seg.head.seqNum == this.ackNum && seg.head.fin == 1) {
             // simultanious
             setState(TCPState.CLOSING)
 
@@ -360,18 +361,22 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
 
-          } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && this.seqNum == seg.head.ackNum && seg.head.fin == 1) {
+          } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 1) {
 
             this.seqNum = increaseNumber(this.seqNum, 1)
             this.ackNum = increaseNumber(this.ackNum, 1)
 
             setState(TCPState.TIME_WAIT)
+
+            // time out
+            Thread.sleep(2 * tcp.DefaultMSL)
+
+            this.setState(TCPState.CLOSE)
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
             recvData(seg)
           }
         case TCPState.FIN_WAIT2 =>
-          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && this.seqNum == seg.head.ackNum && seg.head.fin == 1) {
-            setState(TCPState.TIME_WAIT)
+          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && seg.head.seqNum == this.ackNum && seg.head.fin == 1) {
 
             this.ackNum = increaseNumber(this.ackNum, 1)
 
@@ -379,20 +384,26 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             newSeg.head.ack = 1
 
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
+
+            setState(TCPState.TIME_WAIT)
+
+            // time out
+            Thread.sleep(2 * tcp.DefaultMSL)
+
+            this.setState(TCPState.CLOSE)
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
             recvData(seg)
           }
         case TCPState.TIME_WAIT =>
           {
-            Thread.sleep(2 * tcp.DefaultMSL)
-
-            this.setState(TCPState.CLOSE)
+            // do nothing
           }
         case TCPState.LAST_ACK =>
-          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && this.seqNum == seg.head.ackNum && seg.head.fin == 0) {
+          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
             this.setState(TCPState.CLOSE)
 
             tcp.synchronized {
+              tcp.portArray.set(srcPort, false)
               tcp.socketArray.set(socket, false)
               tcp.boundedSocketHashMap.remove(socket)
 
@@ -420,8 +431,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             } // ignore for else
           }
         case TCPState.CLOSING =>
-          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && this.seqNum == seg.head.ackNum && seg.head.fin == 0) {
+          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
             setState(TCPState.TIME_WAIT)
+
+            // time out
+            Thread.sleep(2 * tcp.DefaultMSL)
+
+            this.setState(TCPState.CLOSE)
           }
         //case _ => throw new UnknownTCPStateException
       }
