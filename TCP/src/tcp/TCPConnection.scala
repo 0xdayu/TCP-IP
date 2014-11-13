@@ -20,6 +20,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   var sendBuf: SendBuffer = new SendBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow, this)
   var recvBuf: RecvBuffer = new RecvBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow)
 
+  var blockRecv: Boolean = false
+  var blockSend: Boolean = false
+
   // src
   var srcIP: InetAddress = _
   var srcPort: Int = port
@@ -124,6 +127,18 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def isEstablished(): Boolean = {
     this.synchronized {
       state == TCPState.ESTABLISHED
+    }
+  }
+
+  def isFinWait1(): Boolean = {
+    this.synchronized {
+      state == TCPState.FIN_WAIT1
+    }
+  }
+
+  def isFinWait2(): Boolean = {
+    this.synchronized {
+      state == TCPState.FIN_WAIT2
     }
   }
 
@@ -301,19 +316,6 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         case TCPState.CLOSE_WAIT =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
             recvData(seg)
-
-            if (sendBuf.isEmpty) {
-
-              val newSeg = replyTCPSegment(seg)
-              newSeg.head.fin = 1
-              newSeg.head.ack = 1
-
-              tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
-
-              this.dataSendingThread.stop
-
-              setState(TCPState.LAST_ACK)
-            }
           }
         case TCPState.SYN_SENT =>
           // expect to get segment with syn+ack (3 of 3 handshakes)

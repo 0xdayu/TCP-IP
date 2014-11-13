@@ -238,10 +238,15 @@ class TCP(nodeInterface: ip.NodeInterface) {
         throw new ErrorTCPStateException(conn.getState)
       }
 
-      if (!conn.isEstablished) {
+      if (!conn.isEstablished && !conn.isFinWait1 && !conn.isFinWait2) {
         throw new ErrorTCPStateException(conn.getState)
       }
+
+      if (conn.blockRecv) {
+        throw new ReadBlockException
+      }
     }
+
     conn.recvBuf.read(numbytes)
   }
 
@@ -261,10 +266,13 @@ class TCP(nodeInterface: ip.NodeInterface) {
         throw new ErrorTCPStateException(conn.getState)
       }
 
-      if (!conn.isEstablished) {
-        throw new ErrorTCPStateException(conn.getState)
+      if (conn.blockSend) {
+        throw new WriteBlockException
       }
 
+      if (!conn.isEstablished && !conn.isCloseWait) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
     }
     conn.sendBuf.write(buf)
   }
@@ -272,55 +280,52 @@ class TCP(nodeInterface: ip.NodeInterface) {
   def virShutDown(socket: Int, sdType: Int) {
     sdType match {
       case 1 =>
-      case 2 =>
-      case 3 =>
-        virClose(socket)
-    }
+        // write
+        if (serverHashMap.contains(socket)) {
+          throw new ServerCannotShutdownException()
+        } else {
+          this.synchronized {
+            if (socket < socketLeftBound || socket > socketRightBound) {
+              throw new InvalidSocketException(socket)
+            } else if (!socketArray.get(socket)) {
+              throw new UninitialSocketException(socket)
+            } else if (!boundedSocketHashMap.contains(socket)) {
+              throw new UnboundSocketException(socket)
+            }
+            val conn = boundedSocketHashMap.getOrElse(socket, null)
 
+            conn.blockSend = true
+          }
+          virCloseHelper(socket, false)
+        }
+      case 2 =>
+        // read
+        if (serverHashMap.contains(socket)) {
+          throw new ServerCannotShutdownException()
+        } else {
+          this.synchronized {
+            if (socket < socketLeftBound || socket > socketRightBound) {
+              throw new InvalidSocketException(socket)
+            } else if (!socketArray.get(socket)) {
+              throw new UninitialSocketException(socket)
+            } else if (!boundedSocketHashMap.contains(socket)) {
+              throw new UnboundSocketException(socket)
+            }
+            val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+            conn.blockRecv = true
+          }
+        }
+      case 3 =>
+        // fin
+        if (serverHashMap.contains(socket)) {
+        } else {
+        }
+    }
   }
 
   def virClose(socket: Int) {
-    var conn: TCPConnection = null
-    this.synchronized {
-      if (socket < socketLeftBound || socket > socketRightBound) {
-        throw new InvalidSocketException(socket)
-      } else if (!socketArray.get(socket)) {
-        throw new UninitialSocketException(socket)
-      } else if (!boundedSocketHashMap.contains(socket)) {
-        throw new UnboundSocketException(socket)
-      }
-
-      conn = boundedSocketHashMap.getOrElse(socket, null)
-
-      // set to zombie status
-      conn.zombie = true
-
-      if (conn.isServerAndListen) {
-        conn.setState(TCPState.CLOSE)
-
-        conn.semaphoreQueue.release
-        return
-      }
-
-      if (!conn.isEstablished && !conn.isCloseWait) {
-        throw new ErrorTCPStateException(conn.getState)
-      }
-    }
-
-    conn.sendBuf.waitAvailable
-
-    if (conn.isEstablished) {
-      conn.setState(TCPState.FIN_WAIT1)
-    } else {
-      conn.setState(TCPState.LAST_ACK)
-    }
-
-    val seg = conn.generateTCPSegment
-
-    seg.head.fin = 1
-    seg.head.ack = 1
-
-    multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, seg)
+    virCloseHelper(socket, true)
   }
 
   def virReadAll(socket: Int, numbytes: Int): Array[Byte] = {
@@ -374,13 +379,65 @@ class TCP(nodeInterface: ip.NodeInterface) {
         for (socket <- list) {
           val conn = boundedSocketHashMap.getOrElse(socket, null)
           if (conn.getSrcIP != null) {
-            println("[" + socket + "]\t[" + conn.getSrcIP.getHostAddress + ":" + conn.getSrcPort + "]\t[" + conn.getDstIP.getHostAddress + ":" + conn.getDstPort + "]\t" + conn.getState)
+            if (conn.zombie) {
+              println("[" + socket + "]\t[" + conn.getSrcIP.getHostAddress + ":" + conn.getSrcPort + "]\t[" + conn.getDstIP.getHostAddress + ":" + conn.getDstPort + "]\t" + conn.getState + "(Zombie)")
+            } else {
+              println("[" + socket + "]\t[" + conn.getSrcIP.getHostAddress + ":" + conn.getSrcPort + "]\t[" + conn.getDstIP.getHostAddress + ":" + conn.getDstPort + "]\t" + conn.getState)
+            }
           } else {
-            println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState)
+            if (conn.zombie) {
+              println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState + "(Zombie)")
+            } else {
+              println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState)
+            }
           }
         }
       }
     }
+  }
+
+  def virCloseHelper(socket: Int, zombie: Boolean) {
+    var conn: TCPConnection = null
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        throw new UnboundSocketException(socket)
+      }
+
+      conn = boundedSocketHashMap.getOrElse(socket, null)
+
+      // set to zombie status
+      conn.zombie = zombie
+
+      if (conn.isServerAndListen) {
+        conn.setState(TCPState.CLOSE)
+
+        conn.semaphoreQueue.release
+        return
+      }
+
+      if (!conn.isEstablished && !conn.isCloseWait) {
+        throw new ErrorTCPStateException(conn.getState)
+      }
+    }
+
+    conn.sendBuf.waitAvailable
+
+    if (conn.isEstablished) {
+      conn.setState(TCPState.FIN_WAIT1)
+    } else {
+      conn.setState(TCPState.LAST_ACK)
+    }
+
+    val seg = conn.generateTCPSegment
+
+    seg.head.fin = 1
+    seg.head.ack = 1
+
+    multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, seg)
   }
 
   def removeSocket(socket: Int) {
