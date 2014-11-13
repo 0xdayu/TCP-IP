@@ -16,6 +16,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   var checkState: TCPState.Value = null
   val semaphoreCheckState = new Semaphore(0)
+  
+  var dstFlowWindow: Int = _
 
   var sendBuf: SendBuffer = new SendBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow, this)
   var recvBuf: RecvBuffer = new RecvBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow)
@@ -298,6 +300,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
     var timeWait = false
 
     this.synchronized {
+      dstFlowWindow = seg.head.winSize 
       state match {
         case TCPState.CLOSE =>
         case TCPState.ESTABLISHED =>
@@ -500,6 +503,12 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def getAck(): Long = {
     this.synchronized {
       ackNum
+    }
+  }
+  
+  def getFlowWindow(): Int = {
+    this.synchronized {
+      dstFlowWindow 
     }
   }
 }

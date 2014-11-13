@@ -32,17 +32,37 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
   }
 
   def read(size: Int): Array[Byte] = {
+    val dstFlowWindowSize = conn.getFlowWindow
     this.synchronized {
       // maybe slide < sendBuf.length
       if (slide <= sendBuf.length) {
         new Array[Byte](0)
       } else {
-        val realLen = math.min(math.min(size, writeBuf.length), slide - sendBuf.length)
-        val pending = writeBuf.slice(0, realLen)
-        writeBuf = writeBuf.slice(realLen, writeBuf.length)
-        sendBuf ++= pending
+        // difference between sendbuf and dstFlowWindowSize
+        var temp = 0
+        if (dstFlowWindowSize < sendBuf.size){
+          temp = 0
+        } else {
+          temp = dstFlowWindowSize - sendBuf.size
+        }
+        
+        val realLen = math.min(math.min(math.min(size, writeBuf.length), slide - sendBuf.length), temp)
+        if (dstFlowWindowSize == 0) {
+          if (writeBuf.length != 0 && sendBuf.length == 0) {
+            val pending = writeBuf.slice(0, 1)
+            sendBuf ++= pending
+            
+            pending
+          } else {
+            new Array[Byte](0)
+          }
+        } else {
+          val pending = writeBuf.slice(0, realLen)
+          writeBuf = writeBuf.slice(realLen, writeBuf.length)
+          sendBuf ++= pending
 
-        pending
+          pending
+        }
       }
     }
   }
@@ -98,9 +118,9 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
     }
     this.semaphoreCheckAvailalbe.acquire
   }
-  
-  def isEmpty() : Boolean = {
-    this.synchronized{
+
+  def isEmpty(): Boolean = {
+    this.synchronized {
       available == capacity
     }
   }
