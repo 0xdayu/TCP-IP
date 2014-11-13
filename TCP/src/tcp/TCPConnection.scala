@@ -16,7 +16,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   var checkState: TCPState.Value = null
   val semaphoreCheckState = new Semaphore(0)
-  
+
   var dstFlowWindow: Int = _
 
   var sendBuf: SendBuffer = new SendBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow, this)
@@ -51,6 +51,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   val previousState = new HashMap[TCPState.Value, Array[TCPState.Value]]
   val nextState = new HashMap[TCPState.Value, Array[TCPState.Value]]
+
+  var dupAckCount: (Long, Int) = (0, 0)
 
   // Hardcode previous and next network state
   previousState.put(TCPState.CLOSE, Array(TCPState.SYN_SENT, TCPState.LISTEN, TCPState.LAST_ACK, TCPState.TIME_WAIT))
@@ -256,6 +258,20 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   def recvData(seg: TCPSegment) {
     this.synchronized {
+      // fast retransmit
+      if (seg.head.ackNum > this.dupAckCount._1) {
+        this.dupAckCount = (seg.head.ackNum, 0)
+      } else if (seg.head.ackNum == this.dupAckCount._1) {
+        this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
+      }
+      if (dupAckCount._2 == 4) {
+        dupAckCount = (dupAckCount._1, 0)
+        val payload = sendBuf.fastRetransmit
+        if (payload.length != 0) {
+          tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload))
+        }
+      }
+
       // receive the data
       var start = this.ackNum
       var end = increaseNumber(start, this.recvBuf.getSliding)
@@ -298,9 +314,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   // based on current state, expect proper segment and behave based on state machine
   def connectionBehavior(srcip: InetAddress, dstip: InetAddress, seg: TCPSegment) {
     var timeWait = false
-
     this.synchronized {
-      dstFlowWindow = seg.head.winSize 
+      dstFlowWindow = seg.head.winSize
       state match {
         case TCPState.CLOSE =>
         case TCPState.ESTABLISHED =>
@@ -505,10 +520,10 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       ackNum
     }
   }
-  
+
   def getFlowWindow(): Int = {
     this.synchronized {
-      dstFlowWindow 
+      dstFlowWindow
     }
   }
 }

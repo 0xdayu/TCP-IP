@@ -429,7 +429,11 @@ class TCP(nodeInterface: ip.NodeInterface) {
       }
       val conn = boundedSocketHashMap.getOrElse(socket, null)
 
-      println("(local, remote): " + conn.recvBuf.getAvailable + conn.getFlowWindow)
+      if (conn.isServerAndListen) {
+        println("Server has no window size")
+      } else {
+        println("(Local, Remote): " + conn.recvBuf.getAvailable + " " + conn.getFlowWindow)
+      }
     }
   }
 

@@ -40,18 +40,18 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
       } else {
         // difference between sendbuf and dstFlowWindowSize
         var temp = 0
-        if (dstFlowWindowSize < sendBuf.size){
+        if (dstFlowWindowSize < sendBuf.size) {
           temp = 0
         } else {
           temp = dstFlowWindowSize - sendBuf.size
         }
-        
+
         val realLen = math.min(math.min(math.min(size, writeBuf.length), slide - sendBuf.length), temp)
         if (dstFlowWindowSize == 0) {
           if (writeBuf.length != 0 && sendBuf.length == 0) {
             val pending = writeBuf.slice(0, 1)
             sendBuf ++= pending
-            
+
             pending
           } else {
             new Array[Byte](0)
@@ -63,6 +63,26 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
 
           pending
         }
+      }
+    }
+  }
+
+  def fastRetransmit(): Array[Byte] = {
+    val dstFlowWindowSize = conn.getFlowWindow
+    this.synchronized {
+      if (sendBuf.length != 0) {
+        var temp = 0
+        if (dstFlowWindowSize < sendBuf.size) {
+          temp = 0
+        } else {
+          temp = dstFlowWindowSize - sendBuf.size
+        }
+
+        // TODO: change to constant
+        val realLen = math.min(math.min(1024, sendBuf.length), temp)
+        sendBuf.slice(0, realLen)
+      } else {
+        new Array[Byte](0)
       }
     }
   }
