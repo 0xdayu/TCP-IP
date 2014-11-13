@@ -418,6 +418,21 @@ class TCP(nodeInterface: ip.NodeInterface) {
     }
   }
 
+  def printWindow(socket: Int) {
+    this.synchronized {
+      if (socket < socketLeftBound || socket > socketRightBound) {
+        throw new InvalidSocketException(socket)
+      } else if (!socketArray.get(socket)) {
+        throw new UninitialSocketException(socket)
+      } else if (!boundedSocketHashMap.contains(socket)) {
+        throw new UnboundSocketException(socket)
+      }
+      val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+      println("(local, remote): " + conn.recvBuf.getAvailable + conn.getFlowWindow)
+    }
+  }
+
   def virCloseHelper(socket: Int, zombie: Boolean) {
     var conn: TCPConnection = null
     this.synchronized {

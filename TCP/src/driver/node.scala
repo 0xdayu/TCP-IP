@@ -364,7 +364,11 @@ object node {
       println(UsageCommand)
     } else if (arr(1).trim.forall(_.isDigit)) {
       val socket = arr(1).trim.toInt
-      // TODO
+      try {
+        tcp.printWindow(socket)
+      } catch {
+        case e: Exception => println(e.getMessage)
+      }
     } else {
       println("[wd]window <socket>: input should be socket number: " + arr(1).trim)
     }
