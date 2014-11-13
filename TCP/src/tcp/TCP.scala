@@ -291,8 +291,12 @@ class TCP(nodeInterface: ip.NodeInterface) {
           }
           val conn = boundedSocketHashMap.getOrElse(socket, null)
 
-          if (serverHashMap.contains(conn.getSrcPort)) {
-            throw new ServerCannotShutdownException()
+          if (conn.close) {
+            return
+          }
+
+          if (conn.isServerAndListen) {
+            throw new ServerCannotShutdownException
           }
 
           if (conn.blockSend) {
@@ -313,8 +317,12 @@ class TCP(nodeInterface: ip.NodeInterface) {
           }
           val conn = boundedSocketHashMap.getOrElse(socket, null)
 
-          if (serverHashMap.contains(conn.getSrcPort)) {
-            throw new ServerCannotShutdownException()
+          if (conn.close) {
+            return
+          }
+
+          if (conn.isServerAndListen) {
+            throw new ServerCannotShutdownException
           }
 
           conn.blockRecv = true
@@ -330,6 +338,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
             throw new UnboundSocketException(socket)
           }
           val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+          if (conn.close) {
+            return
+          }
 
           if (conn.blockSend) {
             conn.blockRecv = true
