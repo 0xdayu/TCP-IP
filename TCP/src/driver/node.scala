@@ -5,6 +5,7 @@ import util._
 import java.net.InetAddress
 import tcp._
 import java.io._
+import exception._
 
 object node {
   val UsageCommand = "We only accept: [h]help, [li]interfaces, [lr]routes, " +
@@ -184,14 +185,16 @@ object node {
       println(UsageCommand)
     } else if (arr(1).trim.forall(_.isDigit)) {
       val port = arr(1).trim.toInt
+      var vsocket = -1
       try {
-        val vsocket = tcp.virSocket
+        vsocket = tcp.virSocket
         tcp.virBind(vsocket, null, port)
         tcp.virListen(vsocket)
 
         new Thread(new TCPAccept(tcp, vsocket)).start
       } catch {
-        case e: Exception => println(e.getMessage)
+        case e: ErrorTCPStateException => println(e.getMessage);
+        case e: Exception => println(e.getMessage); tcp.removeSocket(vsocket)
       }
     } else {
       println("[a]accept <port>: input should be port number: " + arr(1).trim)
@@ -206,11 +209,13 @@ object node {
         val strIp = arr(1)
         var ip = InetAddress.getByName(strIp)
         val port = arr(2).trim.toInt
+        var vsocket = -1
         try {
-          val vsocket = tcp.virSocket
+          vsocket = tcp.virSocket
           tcp.virConnect(vsocket, ip, port)
         } catch {
-          case e: Exception => println(e.getMessage)
+          case e: ErrorTCPStateException => println(e.getMessage);
+          case e: Exception => println(e.getMessage); tcp.removeSocket(vsocket)
         }
       } catch {
         case _: Throwable =>
@@ -294,8 +299,9 @@ object node {
         val strIp = arr(2)
         var ip = InetAddress.getByName(strIp)
         val port = arr(3).trim.toInt
+        var socket = -1
         try {
-          val socket = tcp.virSocket
+          socket = tcp.virSocket
           tcp.virConnect(socket, ip, port)
 
           var source: BufferedReader = null
@@ -309,7 +315,8 @@ object node {
             new Thread(new SendFile(socket, source, tcp)).start
           }
         } catch {
-          case e: Exception => println(e.getMessage)
+          case e: ErrorTCPStateException => println(e.getMessage);
+          case e: Exception => println(e.getMessage); tcp.removeSocket(socket)
         }
       } catch {
         case _: Throwable =>
@@ -326,9 +333,9 @@ object node {
     } else if (arr(2).trim.forall(_.isDigit)) {
       val filename = arr(1)
       val port = arr(2).toInt
-
+      var socket = -1
       try {
-        val socket = tcp.virSocket
+        socket = tcp.virSocket
         tcp.virBind(socket, null, port)
 
         tcp.virListen(socket)
@@ -344,7 +351,8 @@ object node {
           new Thread(new RecvFile(socket, source, tcp)).start
         }
       } catch {
-        case e: Exception => println(e.getMessage)
+        case e: ErrorTCPStateException => println(e.getMessage);
+        case e: Exception => println(e.getMessage); tcp.removeSocket(socket)
       }
     } else {
       println("[rf]sendfile <filename> <port>: input should be port number: " + arr(2).trim)

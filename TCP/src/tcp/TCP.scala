@@ -311,12 +311,8 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
     if (conn.isEstablished) {
       conn.setState(TCPState.FIN_WAIT1)
-      // set wait state
-      conn.setWaitState(TCPState.FIN_WAIT2)
     } else {
       conn.setState(TCPState.LAST_ACK)
-      // set wait state
-      conn.setWaitState(TCPState.CLOSE)
     }
 
     val seg = conn.generateTCPSegment
@@ -325,9 +321,6 @@ class TCP(nodeInterface: ip.NodeInterface) {
     seg.head.ack = 1
 
     multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, seg)
-
-    // wait that state
-    conn.waitState
   }
 
   def virReadAll(socket: Int, numbytes: Int): Array[Byte] = {
@@ -386,6 +379,14 @@ class TCP(nodeInterface: ip.NodeInterface) {
             println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState)
           }
         }
+      }
+    }
+  }
+
+  def removeSocket(socket: Int) {
+    this.synchronized {
+      if (socket != -1 && socketArray.get(socket)) {
+        socketArray.set(socket, false)
       }
     }
   }
