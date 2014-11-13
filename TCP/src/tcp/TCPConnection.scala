@@ -23,6 +23,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   var blockRecv: Boolean = false
   var blockSend: Boolean = false
 
+  var close: Boolean = false
+
   // src
   var srcIP: InetAddress = _
   var srcPort: Int = port
@@ -422,7 +424,6 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
             timeWait = true
           }
-        //case _ => throw new UnknownTCPStateException
       }
     }
 

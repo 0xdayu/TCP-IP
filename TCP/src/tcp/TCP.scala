@@ -238,12 +238,12 @@ class TCP(nodeInterface: ip.NodeInterface) {
         throw new ErrorTCPStateException(conn.getState)
       }
 
-      if (!conn.isEstablished && !conn.isFinWait1 && !conn.isFinWait2) {
-        throw new ErrorTCPStateException(conn.getState)
-      }
-
       if (conn.blockRecv) {
         throw new ReadBlockException
+      }
+
+      if (!conn.isEstablished && !conn.isFinWait1 && !conn.isFinWait2) {
+        throw new ErrorTCPStateException(conn.getState)
       }
     }
 
@@ -281,45 +281,63 @@ class TCP(nodeInterface: ip.NodeInterface) {
     sdType match {
       case 1 =>
         // write
-        if (serverHashMap.contains(socket)) {
-          throw new ServerCannotShutdownException()
-        } else {
-          this.synchronized {
-            if (socket < socketLeftBound || socket > socketRightBound) {
-              throw new InvalidSocketException(socket)
-            } else if (!socketArray.get(socket)) {
-              throw new UninitialSocketException(socket)
-            } else if (!boundedSocketHashMap.contains(socket)) {
-              throw new UnboundSocketException(socket)
-            }
-            val conn = boundedSocketHashMap.getOrElse(socket, null)
-
-            conn.blockSend = true
+        this.synchronized {
+          if (socket < socketLeftBound || socket > socketRightBound) {
+            throw new InvalidSocketException(socket)
+          } else if (!socketArray.get(socket)) {
+            throw new UninitialSocketException(socket)
+          } else if (!boundedSocketHashMap.contains(socket)) {
+            throw new UnboundSocketException(socket)
           }
-          virCloseHelper(socket, false)
+          val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+          if (serverHashMap.contains(conn.getSrcPort)) {
+            throw new ServerCannotShutdownException()
+          }
+
+          if (conn.blockSend) {
+            return
+          }
+          conn.blockSend = true
         }
+        virCloseHelper(socket, false)
       case 2 =>
         // read
-        if (serverHashMap.contains(socket)) {
-          throw new ServerCannotShutdownException()
-        } else {
-          this.synchronized {
-            if (socket < socketLeftBound || socket > socketRightBound) {
-              throw new InvalidSocketException(socket)
-            } else if (!socketArray.get(socket)) {
-              throw new UninitialSocketException(socket)
-            } else if (!boundedSocketHashMap.contains(socket)) {
-              throw new UnboundSocketException(socket)
-            }
-            val conn = boundedSocketHashMap.getOrElse(socket, null)
-
-            conn.blockRecv = true
+        this.synchronized {
+          if (socket < socketLeftBound || socket > socketRightBound) {
+            throw new InvalidSocketException(socket)
+          } else if (!socketArray.get(socket)) {
+            throw new UninitialSocketException(socket)
+          } else if (!boundedSocketHashMap.contains(socket)) {
+            throw new UnboundSocketException(socket)
           }
+          val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+          if (serverHashMap.contains(conn.getSrcPort)) {
+            throw new ServerCannotShutdownException()
+          }
+
+          conn.blockRecv = true
         }
       case 3 =>
-        // fin
-        if (serverHashMap.contains(socket)) {
-        } else {
+        // both
+        this.synchronized {
+          if (socket < socketLeftBound || socket > socketRightBound) {
+            throw new InvalidSocketException(socket)
+          } else if (!socketArray.get(socket)) {
+            throw new UninitialSocketException(socket)
+          } else if (!boundedSocketHashMap.contains(socket)) {
+            throw new UnboundSocketException(socket)
+          }
+          val conn = boundedSocketHashMap.getOrElse(socket, null)
+
+          if (conn.blockSend) {
+            conn.blockRecv = true
+            return
+          }
+          conn.blockSend = true
+          conn.blockRecv = true
+          virCloseHelper(socket, false)
         }
     }
   }
@@ -379,17 +397,9 @@ class TCP(nodeInterface: ip.NodeInterface) {
         for (socket <- list) {
           val conn = boundedSocketHashMap.getOrElse(socket, null)
           if (conn.getSrcIP != null) {
-            if (conn.zombie) {
-              println("[" + socket + "]\t[" + conn.getSrcIP.getHostAddress + ":" + conn.getSrcPort + "]\t[" + conn.getDstIP.getHostAddress + ":" + conn.getDstPort + "]\t" + conn.getState + "(Zombie)")
-            } else {
-              println("[" + socket + "]\t[" + conn.getSrcIP.getHostAddress + ":" + conn.getSrcPort + "]\t[" + conn.getDstIP.getHostAddress + ":" + conn.getDstPort + "]\t" + conn.getState)
-            }
+            println("[" + socket + "]\t[" + conn.getSrcIP.getHostAddress + ":" + conn.getSrcPort + "]\t[" + conn.getDstIP.getHostAddress + ":" + conn.getDstPort + "]\t" + conn.getState)
           } else {
-            if (conn.zombie) {
-              println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState + "(Zombie)")
-            } else {
-              println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState)
-            }
+            println("[" + socket + "]\t[0:0:0:0:" + conn.getSrcPort + "]\t\t[<nil>:0]\t\t" + conn.getState)
           }
         }
       }
@@ -409,8 +419,20 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
       conn = boundedSocketHashMap.getOrElse(socket, null)
 
+      if (conn.close) {
+        return
+      } else {
+        conn.close = true
+      }
+
       // set to zombie status
       conn.zombie = zombie
+
+      if (zombie) {
+        portArray.set(conn.getSrcPort, false)
+        socketArray.set(conn.socket, false)
+        boundedSocketHashMap.remove(conn.socket)
+      }
 
       if (conn.isServerAndListen) {
         conn.setState(TCPState.CLOSE)
@@ -450,14 +472,13 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
   def removeFromTCP(conn: TCPConnection) {
     this.synchronized {
-      portArray.set(conn.getSrcPort, false)
-      socketArray.set(conn.socket, false)
-      boundedSocketHashMap.remove(conn.socket)
-
-      if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
-        clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
-      } else {
-        serverHashMap.remove(conn.socket)
+      if (conn.zombie) {
+        // remove from hashmap
+        if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
+          clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
+        } else {
+          serverHashMap.remove(conn.getSrcPort)
+        }
       }
 
       // stop the thread for application
