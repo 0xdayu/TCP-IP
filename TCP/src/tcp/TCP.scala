@@ -472,13 +472,11 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
   def removeFromTCP(conn: TCPConnection) {
     this.synchronized {
-      if (conn.zombie) {
-        // remove from hashmap
-        if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
-          clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
-        } else {
-          serverHashMap.remove(conn.getSrcPort)
-        }
+      // remove from hashmap
+      if (clientHashMap.contains((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))) {
+        clientHashMap.remove((conn.getSrcIP, conn.getSrcPort, conn.getDstIP, conn.getDstPort))
+      } else {
+        serverHashMap.remove(conn.getSrcPort)
       }
 
       // stop the thread for application
