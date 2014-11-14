@@ -451,6 +451,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
       conn = boundedSocketHashMap.getOrElse(socket, null)
 
       if (conn.close) {
+        // maybe this is only shutdown
+        if (zombie) {
+          removeSocket(socket)
+        }
         return
       } else {
         conn.close = true
