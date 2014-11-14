@@ -266,7 +266,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       }
       if (dupAckCount._2 == 4) {
         dupAckCount = (dupAckCount._1, 0)
-        val payload = sendBuf.fastRetransmit
+        val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
         if (payload.length != 0) {
           tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload))
         }
@@ -316,6 +316,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
     var timeWait = false
     this.synchronized {
       dstFlowWindow = seg.head.winSize
+      this.sendBuf.setSliding(dstFlowWindow)
       state match {
         case TCPState.CLOSE =>
         case TCPState.ESTABLISHED =>

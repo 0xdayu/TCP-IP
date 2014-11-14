@@ -453,7 +453,9 @@ class TCP(nodeInterface: ip.NodeInterface) {
       if (conn.close) {
         // maybe this is only shutdown
         if (zombie) {
-          removeSocket(socket)
+          portArray.set(conn.getSrcPort, false)
+          socketArray.set(conn.socket, false)
+          boundedSocketHashMap.remove(conn.socket)
         }
         return
       } else {

@@ -10,9 +10,7 @@ class RecvFile(socket: Int, source: PrintWriter, tcp: TCP) extends Runnable {
   def run() {
     try {
       val (newSocket, dstPort, dstIP) = tcp.virAccept(socket)
-      // TODO: close
       tcp.virClose(socket)
-      // TODO: close later
       while (true) {
         buf = tcp.virRead(newSocket, BufSize)
         if (buf.length != 0) {

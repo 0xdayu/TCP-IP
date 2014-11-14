@@ -32,22 +32,10 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
   }
 
   def read(size: Int): Array[Byte] = {
-    val dstFlowWindowSize = conn.getFlowWindow
     this.synchronized {
       // maybe slide < sendBuf.length
       if (slide <= sendBuf.length) {
-        new Array[Byte](0)
-      } else {
-        // difference between sendbuf and dstFlowWindowSize
-        var temp = 0
-        if (dstFlowWindowSize < sendBuf.size) {
-          temp = 0
-        } else {
-          temp = dstFlowWindowSize - sendBuf.size
-        }
-
-        val realLen = math.min(math.min(math.min(size, writeBuf.length), slide - sendBuf.length), temp)
-        if (dstFlowWindowSize == 0) {
+        if (slide == 0) {
           if (writeBuf.length != 0 && sendBuf.length == 0) {
             val pending = writeBuf.slice(0, 1)
             sendBuf ++= pending
@@ -57,30 +45,29 @@ class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
             new Array[Byte](0)
           }
         } else {
-          val pending = writeBuf.slice(0, realLen)
-          writeBuf = writeBuf.slice(realLen, writeBuf.length)
-          sendBuf ++= pending
-
-          pending
+          new Array[Byte](0)
         }
+      } else {
+        val realLen = math.min(math.min(size, writeBuf.length), slide - sendBuf.length)
+        val pending = writeBuf.slice(0, realLen)
+        writeBuf = writeBuf.slice(realLen, writeBuf.length)
+        sendBuf ++= pending
+
+        pending
       }
     }
   }
 
-  def fastRetransmit(): Array[Byte] = {
+  def fastRetransmit(mss: Int): Array[Byte] = {
     val dstFlowWindowSize = conn.getFlowWindow
     this.synchronized {
       if (sendBuf.length != 0) {
-        var temp = 0
-        if (dstFlowWindowSize < sendBuf.size) {
-          temp = 0
+        if (slide == 0) {
+          sendBuf.slice(0, 1)
         } else {
-          temp = dstFlowWindowSize - sendBuf.size
+          val realLen = math.min(math.min(mss, sendBuf.length), slide)
+          sendBuf.slice(0, realLen)
         }
-
-        // TODO: change to constant
-        val realLen = math.min(math.min(1024, sendBuf.length), temp)
-        sendBuf.slice(0, realLen)
       } else {
         new Array[Byte](0)
       }
