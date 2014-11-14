@@ -87,10 +87,10 @@ class NodeInterface {
     periodicUpdate.schedule(new PeriodicUpdate(this), TimePeriodic, TimePeriodic)
 
     // timeout of each 12 seconds, we start after 5 seconds (first time)
-    expire.schedule(new Expire(this), TimeExpire)
+    expire.schedule(new Expire(this), 0, TimeExpire)
 
     // timeout of each 20 seconds
-    fragTimeOut.schedule(new FragTimeOut(this), TimeFrag)
+    fragTimeOut.schedule(new FragTimeOut(this), 0, TimeFrag)
   }
 
   def sendPacket(interface: LinkInterface) {

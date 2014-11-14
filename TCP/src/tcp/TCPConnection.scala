@@ -43,7 +43,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   val semaphoreQueue = new Semaphore(0)
 
   // timeout
-  val timeout = new Timer
+  var timeout = new Timer
+  // sequenceNumber, Last set time
+  var timeOutRecord: Long = 0
 
   var dataSendingThread: Thread = _
   var needReply = false
@@ -260,6 +262,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   def recvData(seg: TCPSegment) {
     this.synchronized {
+      var needToResetTime = false
+
       // fast retransmit
       if (seg.head.ackNum > this.dupAckCount._1) {
         this.dupAckCount = (seg.head.ackNum, 0)
@@ -293,16 +297,38 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       start = this.seqNum
       end = increaseNumber(start, this.sendBuf.getSliding)
       if (start <= end && seg.head.ackNum >= start && seg.head.ackNum <= end) {
-        this.sendBuf.removeFlightData((seg.head.ackNum - start).asInstanceOf[Int])
+        val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
+        this.sendBuf.removeFlightData(rmLen)
         this.seqNum = seg.head.ackNum
+        if (rmLen != 0) {
+          needToResetTime = true
+        }
       } else if (start > end && (seg.head.ackNum >= start || seg.head.seqNum <= end)) {
         if (seg.head.ackNum >= start) {
-          this.sendBuf.removeFlightData((seg.head.ackNum - start).asInstanceOf[Int])
+          val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
+          this.sendBuf.removeFlightData(rmLen)
+          if (rmLen != 0) {
+            needToResetTime = true
+          }
         } else {
           val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.ackNum
           this.sendBuf.removeFlightData(offset.asInstanceOf[Int])
+          if (offset.asInstanceOf[Int] != 0) {
+            needToResetTime = true
+          }
         }
         this.seqNum = seg.head.ackNum
+      }
+
+      if (needToResetTime) {
+        // cancel and set new timeout
+        timeout.cancel
+
+        this.timeOutRecord = System.currentTimeMillis
+
+        // timeout thread
+        timeout = new Timer
+        timeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
       }
 
       if (seg.payLoad.length != 0) {
@@ -353,6 +379,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             dataSendingThread = new Thread(new DataSending(this))
             dataSendingThread.start
 
+            // timeout thread
+            timeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+
             val ackSeg = replyTCPSegment(seg)
             ackSeg.head.ack = 1
 
@@ -371,6 +400,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             // new send thread
             dataSendingThread = new Thread(new DataSending(this))
             dataSendingThread.start
+
+            // timeout thread
+            timeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
           }
         case TCPState.FIN_WAIT1 =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
