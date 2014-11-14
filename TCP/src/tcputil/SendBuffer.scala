@@ -74,6 +74,21 @@ class SendBuffer(capacity: Int, conn: TCPConnection) {
     }
   }
 
+  def retransmit(): Array[Byte] = {
+    this.synchronized {
+      if (slide == 0) {
+        if (sendBuf.length != 0) {
+          // probe
+          sendBuf.slice(0, 1)
+        } else {
+          new Array[Byte](0)
+        }
+      } else {
+        sendBuf.slice(0, slide)
+      }
+    }
+  }
+
   def removeFlightData(len: Int) {
     this.synchronized {
       if (len != 0) {

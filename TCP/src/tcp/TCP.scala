@@ -18,6 +18,9 @@ class TCP(nodeInterface: ip.NodeInterface) {
   // less than mtu
   val DefaultMSS = 1024
 
+  // listen queue
+  val PendingQueueSize = 65535
+
   // (ms) 
   val DefaultMSL = 10 * 1000
 

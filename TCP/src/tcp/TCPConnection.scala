@@ -7,6 +7,7 @@ import scala.util.Random
 import scala.compat.Platform
 import scala.collection.mutable.LinkedHashMap
 import java.util.concurrent.Semaphore
+import java.util.Timer
 
 class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
@@ -41,7 +42,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   val pendingQueue = new LinkedHashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
   val semaphoreQueue = new Semaphore(0)
 
-  val PendingQueueSize = 65535
+  // timeout
+  val timeout = new Timer
 
   var dataSendingThread: Thread = _
   var needReply = false
@@ -426,7 +428,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
           }
         case TCPState.LISTEN =>
           if (seg.head.syn == 1 && seg.payLoad.length == 0 && seg.payLoad.length == 0) {
-            if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort)) && pendingQueue.size <= this.PendingQueueSize) {
+            if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort)) && pendingQueue.size <= tcp.PendingQueueSize) {
               val conn = new TCPConnection(-1, seg.head.dstPort, tcp)
               conn.dstIP = srcip
               conn.dstPort = seg.head.srcPort
