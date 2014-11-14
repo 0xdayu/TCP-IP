@@ -1,6 +1,6 @@
 package tcputil
 
-class RecvBuffer(capacity: Int, sliding: Int) {
+class RecvBuffer(capacity: Int) {
   var recvBuf: Array[Byte] = new Array[Byte](0)
 
   // Begin, End
@@ -8,7 +8,7 @@ class RecvBuffer(capacity: Int, sliding: Int) {
   var linkListSize = 0
 
   var available: Int = capacity
-  var slide: Int = sliding
+  var slide: Int = capacity
 
   def read(size: Int): Array[Byte] = {
     this.synchronized {
@@ -121,6 +121,12 @@ class RecvBuffer(capacity: Int, sliding: Int) {
   def getAvailable(): Int = {
     this.synchronized {
       available
+    }
+  }
+
+  def wakeup() {
+    this.synchronized {
+      this.notify
     }
   }
 }

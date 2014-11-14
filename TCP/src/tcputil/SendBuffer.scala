@@ -3,12 +3,12 @@ package tcputil
 import tcp.TCPConnection
 import java.util.concurrent.Semaphore
 
-class SendBuffer(capacity: Int, sliding: Int, conn: TCPConnection) {
+class SendBuffer(capacity: Int, conn: TCPConnection) {
   var writeBuf: Array[Byte] = new Array[Byte](0)
   var sendBuf: Array[Byte] = new Array[Byte](0)
 
   var available: Int = capacity
-  var slide: Int = sliding
+  var slide: Int = capacity
 
   val semaphoreCheckAvailalbe = new Semaphore(0)
 

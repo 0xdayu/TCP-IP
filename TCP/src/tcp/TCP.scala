@@ -15,13 +15,14 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val DefaultFlowBuffSize = 64 * 1024 - 1
   val DefaultMultiplexingBuffSize = 10 * 1024 * 1024
 
-  // less than tcp segment window
-  val DefaultSlidingWindow = 10 * 1024
   // less than mtu
   val DefaultMSS = 1024
 
   // (ms) 
   val DefaultMSL = 10 * 1000
+
+  // (ms)
+  val DefaultRTO = 1000
 
   val socketLeftBound = 3
   val socketRightBound = 65535
@@ -237,7 +238,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       if (conn.isCloseWait) {
         throw new ServerHasCloseException
       }
-      
+
       if (conn.zombie) {
         throw new ErrorTCPStateException(conn.getState)
       }

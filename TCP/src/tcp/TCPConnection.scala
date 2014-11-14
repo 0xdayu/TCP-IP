@@ -19,8 +19,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   var dstFlowWindow: Int = _
 
-  var sendBuf: SendBuffer = new SendBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow, this)
-  var recvBuf: RecvBuffer = new RecvBuffer(tcp.DefaultFlowBuffSize, tcp.DefaultSlidingWindow)
+  var sendBuf: SendBuffer = new SendBuffer(tcp.DefaultFlowBuffSize, this)
+  var recvBuf: RecvBuffer = new RecvBuffer(tcp.DefaultFlowBuffSize)
 
   var blockRecv: Boolean = false
   var blockSend: Boolean = false
@@ -332,6 +332,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
               tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
 
               setState(TCPState.CLOSE_WAIT)
+
+              // wakeup
+              this.recvBuf.wakeup
             }
           }
         case TCPState.CLOSE_WAIT =>
