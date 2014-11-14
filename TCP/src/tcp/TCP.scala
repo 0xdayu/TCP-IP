@@ -234,6 +234,10 @@ class TCP(nodeInterface: ip.NodeInterface) {
       }
       conn = boundedSocketHashMap.getOrElse(socket, null)
 
+      if (conn.isCloseWait) {
+        throw new ServerHasCloseException
+      }
+      
       if (conn.zombie) {
         throw new ErrorTCPStateException(conn.getState)
       }
