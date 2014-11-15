@@ -170,7 +170,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.seqNum = this.seqNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.syn = 1
-      newTCPHead.winSize = this.recvBuf.getAvailable
+      newTCPHead.winSize = this.recvBuf.getSliding
       // checksum will update later
 
       newTCPSegment.head = newTCPHead
@@ -191,7 +191,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.seqNum = this.seqNum
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
-      newTCPHead.winSize = this.recvBuf.getAvailable
+      newTCPHead.winSize = this.recvBuf.getSliding
       // checksum will update later
 
       newTCPSegment.head = newTCPHead
@@ -229,7 +229,31 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.seqNum = increaseNumber(this.seqNum, this.sendBuf.getSendLength - payload.length)
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
-      newTCPHead.winSize = this.recvBuf.getAvailable
+      newTCPHead.winSize = this.recvBuf.getSliding
+      // checksum will update later
+
+      // set all the acks
+      newTCPHead.ack = 1
+
+      newTCPSegment.head = newTCPHead
+      newTCPSegment.payLoad = payload
+
+      newTCPSegment
+    }
+  }
+
+  // this is for timeout
+  def generateTCPSegment(payload: Array[Byte], len: Int): TCPSegment = {
+    this.synchronized {
+      val newTCPSegment = new TCPSegment
+      val newTCPHead = new TCPHead
+      // initial tcp packet
+      newTCPHead.srcPort = this.srcPort
+      newTCPHead.dstPort = this.dstPort
+      newTCPHead.seqNum = increaseNumber(this.seqNum, len)
+      newTCPHead.ackNum = this.ackNum
+      newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
+      newTCPHead.winSize = this.recvBuf.getSliding
       // checksum will update later
 
       // set all the acks
@@ -250,7 +274,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       newTCPHead.seqNum = this.seqNum
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
-      newTCPHead.winSize = this.recvBuf.getAvailable
+      newTCPHead.winSize = this.recvBuf.getSliding
       val newTCPSegment = new TCPSegment
 
       newTCPSegment.head = newTCPHead
@@ -265,59 +289,66 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       var needToResetTime = false
 
       // fast retransmit
-      if (seg.head.ackNum > this.dupAckCount._1) {
-        this.dupAckCount = (seg.head.ackNum, 0)
-      } else if (seg.head.ackNum == this.dupAckCount._1) {
-        this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
-      }
-      if (dupAckCount._2 == 4) {
-        dupAckCount = (dupAckCount._1, 0)
-        val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
-        if (payload.length != 0) {
-          tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload))
+      if (sendBuf.getSendLength != 0) {
+        if (seg.head.ackNum > this.dupAckCount._1) {
+          this.dupAckCount = (seg.head.ackNum, 0)
+        } else if (seg.head.ackNum == this.dupAckCount._1) {
+          this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
+        }
+        if (dupAckCount._2 == 4) {
+          dupAckCount = (dupAckCount._1, 0)
+          val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
+          if (payload.length != 0) {
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload))
+          }
         }
       }
 
-      // receive the data
-      var start = this.ackNum
-      var end = increaseNumber(start, this.recvBuf.getSliding)
+      // avoid sliding change
+      this.recvBuf.synchronized {
+        // receive the data
+        var start = this.ackNum
+        var end = increaseNumber(start, this.recvBuf.getSliding)
 
-      if (start <= end && seg.head.seqNum >= start && seg.head.seqNum <= end) {
-        this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad))
-      } else if (start > end && (seg.head.seqNum >= start || seg.head.seqNum <= end)) {
-        if (seg.head.seqNum >= start) {
+        if (start <= end && seg.head.seqNum >= start && seg.head.seqNum <= end) {
           this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad))
-        } else {
-          val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.seqNum
-          this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(offset.asInstanceOf[Int], seg.payLoad))
+        } else if (start > end && (seg.head.seqNum >= start || seg.head.seqNum <= end)) {
+          if (seg.head.seqNum >= start) {
+            this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write((seg.head.seqNum - start).asInstanceOf[Int], seg.payLoad))
+          } else {
+            val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.seqNum
+            this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(offset.asInstanceOf[Int], seg.payLoad))
+          }
         }
       }
 
-      // deal with flight sending data
-      start = this.seqNum
-      end = increaseNumber(start, this.sendBuf.getSliding)
-      if (start <= end && seg.head.ackNum >= start && seg.head.ackNum <= end) {
-        val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
-        this.sendBuf.removeFlightData(rmLen)
-        this.seqNum = seg.head.ackNum
-        if (rmLen != 0) {
-          needToResetTime = true
-        }
-      } else if (start > end && (seg.head.ackNum >= start || seg.head.seqNum <= end)) {
-        if (seg.head.ackNum >= start) {
+      this.sendBuf.synchronized {
+        // deal with flight sending data
+        var start = this.seqNum
+        var end = increaseNumber(start, this.sendBuf.getSliding)
+        if (start <= end && seg.head.ackNum >= start && seg.head.ackNum <= end) {
           val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
           this.sendBuf.removeFlightData(rmLen)
+          this.seqNum = seg.head.ackNum
           if (rmLen != 0) {
             needToResetTime = true
           }
-        } else {
-          val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.ackNum
-          this.sendBuf.removeFlightData(offset.asInstanceOf[Int])
-          if (offset.asInstanceOf[Int] != 0) {
-            needToResetTime = true
+        } else if (start > end && (seg.head.ackNum >= start || seg.head.seqNum <= end)) {
+          if (seg.head.ackNum >= start) {
+            val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
+            this.sendBuf.removeFlightData(rmLen)
+            if (rmLen != 0) {
+              needToResetTime = true
+            }
+          } else {
+            val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.ackNum
+            this.sendBuf.removeFlightData(offset.asInstanceOf[Int])
+            if (offset.asInstanceOf[Int] != 0) {
+              needToResetTime = true
+            }
           }
+          this.seqNum = seg.head.ackNum
         }
-        this.seqNum = seg.head.ackNum
       }
 
       if (needToResetTime) {
@@ -410,7 +441,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
             setState(TCPState.FIN_WAIT2)
 
-            this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(0, seg.payLoad))
+            recvData(seg)
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == this.seqNum && seg.head.seqNum == this.ackNum && seg.head.fin == 1) {
             // simultanious
             setState(TCPState.CLOSING)

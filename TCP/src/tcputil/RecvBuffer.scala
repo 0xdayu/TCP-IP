@@ -5,9 +5,7 @@ class RecvBuffer(capacity: Int) {
 
   // Begin, End
   var linkList: Array[(Int, Int, Array[Byte])] = new Array[(Int, Int, Array[Byte])](0)
-  var linkListSize = 0
 
-  var available: Int = capacity
   var slide: Int = capacity
 
   def read(size: Int): Array[Byte] = {
@@ -18,7 +16,8 @@ class RecvBuffer(capacity: Int) {
       val realLen = math.min(recvBuf.length, size)
       val result = recvBuf.slice(0, realLen)
       recvBuf = recvBuf.slice(realLen, recvBuf.length)
-      available += realLen
+
+      slide += realLen
 
       result
     }
@@ -27,12 +26,12 @@ class RecvBuffer(capacity: Int) {
   // return to move how many bytes
   def write(off: Int, buf: Array[Byte]): Int = {
     this.synchronized {
-      // TODO: sliding window may change
+
       if (buf.length == 0) {
         return 0
       }
 
-      if (slide <= linkListSize) {
+      if (slide == 0) {
         return 0
       }
 
@@ -44,7 +43,6 @@ class RecvBuffer(capacity: Int) {
       }
 
       val data = buf.slice(0, realLen)
-      var originSize = realLen
 
       val begin = off
       val end = off + realLen
@@ -70,25 +68,18 @@ class RecvBuffer(capacity: Int) {
         } else {
           if (addNode._1 >= node._1 && addNode._2 <= node._2) {
             addNode = node
-            originSize = 0
           } else if (addNode._1 <= node._1 && addNode._2 >= node._2) {
             // addNode = addNode
           } else if (addNode._1 <= node._1 && addNode._2 <= node._2) {
             addNode = (addNode._1, node._2, addNode._3.slice(0, node._1 - addNode._1) ++ node._3)
-            originSize -= (addNode._2 - node._1)
           } else {
             addNode = (node._1, addNode._2, node._3.slice(0, addNode._1 - node._1) ++ addNode._3)
-            originSize -= (node._2 - addNode._1)
           }
         }
       }
       templinkList = templinkList :+ addNode
 
       linkList = templinkList
-
-      linkListSize += originSize
-
-      available -= originSize
 
       var templength = 0
 
@@ -98,29 +89,32 @@ class RecvBuffer(capacity: Int) {
         }
         recvBuf = recvBuf ++ linkList(0)._3
         templength = linkList(0)._3.length
-        linkListSize -= linkList(0)._3.length
         linkList = linkList.slice(1, linkList.length)
-      }
+        slide -= templength
 
+        // modify the length for begin and end of each entry
+        var tempModify: Array[(Int, Int, Array[Byte])] = new Array[(Int, Int, Array[Byte])](0)
+        for (node <- linkList) {
+          tempModify = tempModify :+ (node._1 - templength, node._2 - templength, node._3)
+        }
+        linkList = tempModify
+      }
+      // printTemp(templength)
       templength
     }
   }
 
-  def setSliding(newSliding: Int) {
-    this.synchronized {
-      slide = newSliding
+  // debug function to print
+  def printTemp(submit: Int) {
+    println("====================" + " update: " + submit)
+    for (i <- linkList) {
+      println("Start: " + i._1 + " End: " + i._2 + " Data: " + i._3.length)
     }
   }
 
   def getSliding(): Int = {
     this.synchronized {
       slide
-    }
-  }
-
-  def getAvailable(): Int = {
-    this.synchronized {
-      available
     }
   }
 

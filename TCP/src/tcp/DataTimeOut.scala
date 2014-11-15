@@ -9,9 +9,9 @@ class DataTimeOut(tcp: TCP, conn: TCPConnection) extends TimerTask {
 
     while (buf.length != size) {
       val payload = buf.slice(size, size + tcp.DefaultMSS)
-      size += payload.length
+      tcp.multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, conn.generateTCPSegment(payload, size))
 
-      tcp.multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, conn.generateTCPSegment(payload))
+      size += payload.length
     }
   }
 }

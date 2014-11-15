@@ -25,7 +25,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val DefaultMSL = 10 * 1000
 
   // (ms)
-  val DefaultRTO = 1000
+  val DefaultRTO = 350
 
   val socketLeftBound = 3
   val socketRightBound = 65535
@@ -440,7 +440,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       if (conn.isServerAndListen) {
         println("Server has no window size")
       } else {
-        println("(Local, Remote): " + conn.recvBuf.getAvailable + " " + conn.getFlowWindow)
+        println("(Local, Remote): " + conn.recvBuf.getSliding + " " + conn.getFlowWindow)
       }
     }
   }
@@ -527,6 +527,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       // stop the thread for application
       try {
         conn.dataSendingThread.stop
+        conn.timeout.cancel
       } catch {
         case e: Exception => // nothing here
       }
