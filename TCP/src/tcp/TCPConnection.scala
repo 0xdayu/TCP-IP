@@ -43,7 +43,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   val semaphoreQueue = new Semaphore(0)
 
   // timeout
-  var timeout = new Timer
+  var dataTimeout = new Timer
   // sequenceNumber, Last set time
   var timeOutRecord: Long = 0
 
@@ -353,13 +353,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
       if (needToResetTime) {
         // cancel and set new timeout
-        timeout.cancel
+        dataTimeout.cancel
 
         this.timeOutRecord = System.currentTimeMillis
 
         // timeout thread
-        timeout = new Timer
-        timeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+        dataTimeout = new Timer
+        dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
       }
 
       if (seg.payLoad.length != 0) {
@@ -411,7 +411,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             dataSendingThread.start
 
             // timeout thread
-            timeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+            dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
 
             val ackSeg = replyTCPSegment(seg)
             ackSeg.head.ack = 1
@@ -433,7 +433,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             dataSendingThread.start
 
             // timeout thread
-            timeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+            dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
           }
         case TCPState.FIN_WAIT1 =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {

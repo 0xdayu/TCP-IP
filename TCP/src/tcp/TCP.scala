@@ -13,7 +13,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
 
   // 2^16 - 1
   val DefaultFlowBuffSize = 64 * 1024 - 1
-  val DefaultMultiplexingBuffSize = 10 * 1024 * 1024
+  val DefaultMultiplexingBuffSize = 2 * 1024 * 1024 * 1024 - 1
 
   // less than mtu
   val DefaultMSS = 1024
@@ -25,7 +25,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val DefaultMSL = 10 * 1000
 
   // (ms)
-  val DefaultRTO = 350
+  val DefaultRTO = 5
 
   val socketLeftBound = 3
   val socketRightBound = 65535
@@ -527,7 +527,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       // stop the thread for application
       try {
         conn.dataSendingThread.stop
-        conn.timeout.cancel
+        conn.dataTimeout.cancel
       } catch {
         case e: Exception => // nothing here
       }
