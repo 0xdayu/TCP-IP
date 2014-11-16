@@ -243,14 +243,14 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   }
 
   // this is for timeout
-  def generateTCPSegment(payload: Array[Byte], len: Int): TCPSegment = {
+  def generateTCPSegment(payload: Array[Byte], startSeq: Long, len: Int): TCPSegment = {
     this.synchronized {
       val newTCPSegment = new TCPSegment
       val newTCPHead = new TCPHead
       // initial tcp packet
       newTCPHead.srcPort = this.srcPort
       newTCPHead.dstPort = this.dstPort
-      newTCPHead.seqNum = increaseNumber(this.seqNum, len)
+      newTCPHead.seqNum = increaseNumber(startSeq, len)
       newTCPHead.ackNum = this.ackNum
       newTCPHead.dataOffset = ConvertObject.DefaultHeadLength
       newTCPHead.winSize = this.recvBuf.getSliding
@@ -289,19 +289,19 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       var needToResetTime = false
 
       // fast retransmit
-      if (sendBuf.getSendLength != 0) {
-        if (seg.head.ackNum > this.dupAckCount._1) {
-          this.dupAckCount = (seg.head.ackNum, 0)
-        } else if (seg.head.ackNum == this.dupAckCount._1) {
-          this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
+      if (seg.head.ackNum > this.dupAckCount._1) {
+        this.dupAckCount = (seg.head.ackNum, 0)
+      } else if (seg.head.ackNum == this.dupAckCount._1) {
+        this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
+      }
+      if (dupAckCount._2 == 4 && sendBuf.getSendLength != 0) {
+        dupAckCount = (dupAckCount._1, 0)
+        val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
+        if (payload.length != 0) {
+          tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload, this.seqNum, 0))
         }
-        if (dupAckCount._2 == 4) {
-          dupAckCount = (dupAckCount._1, 0)
-          val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
-          if (payload.length != 0) {
-            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload))
-          }
-        }
+      } else {
+        this.dupAckCount = (seg.head.ackNum, 0)
       }
 
       // avoid sliding change
@@ -587,6 +587,12 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def getAck(): Long = {
     this.synchronized {
       ackNum
+    }
+  }
+
+  def getSeq(): Long = {
+    this.synchronized {
+      seqNum
     }
   }
 
