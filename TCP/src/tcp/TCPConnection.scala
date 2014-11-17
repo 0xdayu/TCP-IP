@@ -93,7 +93,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       var ret = false
       if (nextState.getOrElse(state, null).contains(next)) {
         state = next
-        if (checkState == next) {
+        if (checkState == next || next == TCPState.CLOSE) {
           semaphoreCheckState.release
           // back to null
           checkState = null
@@ -131,6 +131,18 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def isServerAndListen(): Boolean = {
     this.synchronized {
       state == TCPState.LISTEN
+    }
+  }
+
+  def isSynsent(): Boolean = {
+    this.synchronized {
+      state == TCPState.SYN_SENT
+    }
+  }
+
+  def isSynrecv: Boolean = {
+    this.synchronized {
+      state == TCPState.SYN_RECV
     }
   }
 
@@ -374,6 +386,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def connectionBehavior(srcip: InetAddress, dstip: InetAddress, seg: TCPSegment) {
     var timeWait = false
     this.synchronized {
+      // TODO: Maybe we should change
+      if (seg.head.rst == 1) {
+        println("Attempted to connect, but connection was reset.")
+        tcp.virClose(socket)
+        return
+      }
+
       dstFlowWindow = seg.head.winSize
       this.sendBuf.setSliding(dstFlowWindow)
       state match {
@@ -419,9 +438,34 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
 
             setState(TCPState.ESTABLISHED)
+          } else if (seg.head.syn == 1 && seg.head.ack == 0 && seg.payLoad.length == 0) {
+            // simultaneous
+            this.ackNum = increaseNumber(seg.head.seqNum, 1)
+
+            val ackSeg = replyTCPSegment(seg)
+            ackSeg.head.ack = 1
+            ackSeg.head.syn = 1
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
+
+            setState(TCPState.SYN_RECV)
           }
         case TCPState.SYN_RECV =>
           if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.seqNum == this.ackNum && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.fin == 0) {
+            this.seqNum = increaseNumber(this.seqNum, 1)
+
+            setState(TCPState.ESTABLISHED)
+
+            this.ackNum = increaseNumber(this.ackNum, this.recvBuf.write(0, seg.payLoad))
+
+            // new send thread
+            dataSendingThread = new Thread(new DataSending(this))
+            dataSendingThread.start
+
+            // timeout thread
+            dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+          } else if (seg.head.syn == 1 && seg.head.ack == 1 && increaseNumber(seg.head.seqNum, 1) == this.ackNum && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.fin == 0) {
+            // simultaneous
             this.seqNum = increaseNumber(this.seqNum, 1)
 
             setState(TCPState.ESTABLISHED)
@@ -490,7 +534,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             this.setState(TCPState.CLOSE)
           }
         case TCPState.LISTEN =>
-          if (seg.head.syn == 1 && seg.payLoad.length == 0 && seg.payLoad.length == 0) {
+          if (seg.head.syn == 1 && seg.head.ack == 0 && seg.payLoad.length == 0) {
             if (!pendingQueue.contains((dstip, seg.head.dstPort, srcip, seg.head.srcPort)) && pendingQueue.size <= tcp.PendingQueueSize) {
               val conn = new TCPConnection(-1, seg.head.dstPort, tcp)
               conn.dstIP = srcip

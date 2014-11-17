@@ -17,7 +17,10 @@ class SendFile(socket: Int, source: BufferedReader, tcp: TCP) extends Runnable {
 
       tcp.virClose(socket)
       source.close
+
+      println("")
       println("sendfile on socket " + socket + " done")
+      print("> ")
     } catch {
       case e: Exception => println(e.getMessage)
     }

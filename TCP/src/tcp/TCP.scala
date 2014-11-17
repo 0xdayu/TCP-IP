@@ -486,7 +486,12 @@ class TCP(nodeInterface: ip.NodeInterface) {
         return
       }
 
-      if (!conn.isEstablished && !conn.isCloseWait) {
+      if (conn.isSynsent) {
+        conn.setState(TCPState.CLOSE)
+        return
+      }
+
+      if (!conn.isEstablished && !conn.isCloseWait && !conn.isSynrecv) {
         throw new ErrorTCPStateException(conn.getState)
       }
     }
