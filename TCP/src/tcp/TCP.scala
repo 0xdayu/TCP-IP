@@ -21,11 +21,17 @@ class TCP(nodeInterface: ip.NodeInterface) {
   // listen queue
   val PendingQueueSize = 65535
 
-  // (ms) 
-  val DefaultMSL = 10 * 1000
+  // MSL (ms) 
+  val DefaultMSL = 2 * 60 * 1000
 
   // (ms)
   val DefaultRTO = 5
+
+  // connect or close timeout (ms)
+  val DefaultConnectOrCloseTimeout = 3 * 1000
+
+  // times for retransmit
+  val DefaultReTransmitTimes = 3
 
   val socketLeftBound = 3
   val socketRightBound = 65535
@@ -153,10 +159,13 @@ class TCP(nodeInterface: ip.NodeInterface) {
       // set wait state
       conn.setWaitState(TCPState.ESTABLISHED)
 
-      multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, conn.generateFirstTCPSegment)
-
       // finish 1 of 3 3-way handshake
       conn.setState(TCPState.SYN_SENT)
+
+      val seg = conn.generateFirstTCPSegment
+      val clone = ConvertObject.cloneSegment(seg)
+      multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, seg)
+      conn.setTimeOut(clone)
 
       // wait that state
       conn.waitState
@@ -215,7 +224,9 @@ class TCP(nodeInterface: ip.NodeInterface) {
       seg.head.syn = 1
       seg.head.ack = 1
 
+      val clone = ConvertObject.cloneSegment(seg)
       multiplexingBuff.bufferWrite(newConn.getSrcIP, newConn.getDstIP, seg)
+      newConn.setTimeOut(clone)
 
       // wait that state
       newConn.waitState
@@ -461,9 +472,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       if (conn.close) {
         // maybe this is only shutdown
         if (zombie) {
-          portArray.set(conn.getSrcPort, false)
-          socketArray.set(conn.socket, false)
-          boundedSocketHashMap.remove(conn.socket)
+          cleanTable(conn)
         }
         return
       } else {
@@ -474,9 +483,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
       conn.zombie = zombie
 
       if (zombie) {
-        portArray.set(conn.getSrcPort, false)
-        socketArray.set(conn.socket, false)
-        boundedSocketHashMap.remove(conn.socket)
+        cleanTable(conn)
       }
 
       if (conn.isServerAndListen) {
@@ -509,7 +516,17 @@ class TCP(nodeInterface: ip.NodeInterface) {
     seg.head.fin = 1
     seg.head.ack = 1
 
+    val clone = ConvertObject.cloneSegment(seg)
     multiplexingBuff.bufferWrite(conn.getSrcIP, conn.getDstIP, seg)
+    conn.setTimeOut(clone)
+  }
+
+  def cleanTable(conn: TCPConnection) {
+    this.synchronized {
+      portArray.set(conn.getSrcPort, false)
+      socketArray.set(conn.socket, false)
+      boundedSocketHashMap.remove(conn.socket)
+    }
   }
 
   def removeSocket(socket: Int) {

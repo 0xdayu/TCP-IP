@@ -42,6 +42,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   val pendingQueue = new LinkedHashMap[(InetAddress, Int, InetAddress, Int), TCPConnection]
   val semaphoreQueue = new Semaphore(0)
 
+  // timeout for connect or close
+  var connectOrCloseTimeOut = new Timer
+
   // timeout
   var dataTimeout = new Timer
   // sequenceNumber, Last set time
@@ -84,6 +87,10 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   nextState.put(TCPState.LAST_ACK, Array(TCPState.CLOSE))
 
   def setState(next: TCPState.Value): Boolean = {
+    // once it changes the state, we need to cancel the timeout
+    // maybe it is not necessary for established states
+    cancelTimeOut
+
     // remove itself
     if (next == TCPState.CLOSE) {
       tcp.removeFromTCP(this)
@@ -435,9 +442,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             val ackSeg = replyTCPSegment(seg)
             ackSeg.head.ack = 1
 
-            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
-
             setState(TCPState.ESTABLISHED)
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
           } else if (seg.head.syn == 1 && seg.head.ack == 0 && seg.payLoad.length == 0) {
             // simultaneous
             this.ackNum = increaseNumber(seg.head.seqNum, 1)
@@ -446,9 +453,11 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             ackSeg.head.ack = 1
             ackSeg.head.syn = 1
 
-            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
-
             setState(TCPState.SYN_RECV)
+
+            val clone = ConvertObject.cloneSegment(ackSeg)
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, ackSeg)
+            this.setTimeOut(clone)
           }
         case TCPState.SYN_RECV =>
           if (seg.head.syn == 0 && seg.head.ack == 1 && seg.head.seqNum == this.ackNum && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.fin == 0) {
@@ -496,7 +505,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             val newSeg = this.replyTCPSegment(seg)
             newSeg.head.ack = 1
 
+            val clone = ConvertObject.cloneSegment(newSeg)
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
+            this.setTimeOut(clone)
 
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 1) {
 
@@ -517,9 +528,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             val newSeg = this.replyTCPSegment(seg)
             newSeg.head.ack = 1
 
-            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
-
             setState(TCPState.TIME_WAIT)
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
 
             timeWait = true
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
@@ -564,6 +575,15 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
       this.setState(TCPState.CLOSE)
     }
+  }
+
+  def setTimeOut(seg: TCPSegment) {
+    connectOrCloseTimeOut = new Timer
+    connectOrCloseTimeOut.schedule(new ConnectOrCloseTimeOut(tcp, this, seg), tcp.DefaultConnectOrCloseTimeout)
+  }
+
+  def cancelTimeOut() {
+    connectOrCloseTimeOut.cancel
   }
 
   // set and get functions as follows

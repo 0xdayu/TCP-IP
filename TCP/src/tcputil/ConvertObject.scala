@@ -91,4 +91,39 @@ object ConvertObject {
 
     segment
   }
+  
+  def cloneSegment(seg: TCPSegment): TCPSegment = {
+    val newSeg = new TCPSegment
+    val newHead = new TCPHead
+    
+    newHead.srcPort = seg.head.srcPort
+    newHead.dstPort = seg.head.dstPort
+    
+    newHead.seqNum = seg.head.seqNum 
+    newHead.ackNum = seg.head.ackNum
+    
+    newHead.dataOffset = seg.head.dataOffset
+    
+    newHead.ns = seg.head.ns
+    newHead.cwr = seg.head.cwr
+    newHead.ece = seg.head.ece
+    newHead.urg = seg.head.urg
+    newHead.ack = seg.head.ack
+    newHead.psh = seg.head.psh
+    newHead.rst = seg.head.rst
+    newHead.syn = seg.head.syn
+    newHead.fin = seg.head.fin
+    
+    newHead.winSize = seg.head.winSize
+    
+    newHead.checkSum = seg.head.checkSum
+    newHead.urgentPointer = seg.head.urgentPointer 
+    
+    newHead.option = seg.head.option
+    
+    newSeg.head = newHead
+    newSeg.payLoad = seg.payLoad.clone
+    
+    newSeg
+  }
 }
