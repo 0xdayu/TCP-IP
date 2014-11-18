@@ -27,7 +27,7 @@ class SendFile(socket: Int, source: BufferedReader, tcp: TCP) extends Runnable {
       val effectiveBandwidth = count / (1024 * 1024 * ((endTime - startTime) / 1000.0))
 
       println("")
-      println("Sendfile on socket " + socket + " done, " + "effective bandwidth: " + f"$effectiveBandwidth%.1f")
+      println("Sendfile on socket " + socket + " done, " + "effective bandwidth: " + f"$effectiveBandwidth%.1f" + " MB/s")
       print("> ")
     } catch {
       case e: Exception => println(e.getMessage)

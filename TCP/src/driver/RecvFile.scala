@@ -3,12 +3,15 @@ package driver
 import tcp.TCP
 import java.io._
 import java.net.InetAddress
+import tcp.TCPConnection
 
 class RecvFile(socket: Int, source: PrintWriter, tcp: TCP) extends Runnable {
   val BufSize = 1024
   var buf: Array[Byte] = _
 
   var newSocket: Int = _
+
+  var conn: TCPConnection = _
 
   def run() {
     try {
@@ -24,11 +27,22 @@ class RecvFile(socket: Int, source: PrintWriter, tcp: TCP) extends Runnable {
         }
       }
 
+      conn = tcp.boundedSocketHashMap.getOrElse(newSocket, null)
+      if (conn != null) {
+        conn.recvBuf.waitAvailable
+      }
       tcp.virClose(newSocket)
       source.close
     } catch {
       case e: exception.ServerHasCloseException =>
-        tcp.virClose(newSocket); source.close
+        {
+          conn = tcp.boundedSocketHashMap.getOrElse(newSocket, null)
+          if (conn != null) {
+            conn.recvBuf.waitAvailable
+          }
+          tcp.virClose(newSocket)
+          source.close
+        }
       case e: Exception => println(e.getMessage)
     }
   }

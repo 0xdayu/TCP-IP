@@ -1,5 +1,7 @@
 package tcputil
 
+import java.util.concurrent.Semaphore
+
 class RecvBuffer(capacity: Int) {
   var recvBuf: Array[Byte] = new Array[Byte](0)
 
@@ -7,6 +9,10 @@ class RecvBuffer(capacity: Int) {
   var linkList: Array[(Int, Int, Array[Byte])] = new Array[(Int, Int, Array[Byte])](0)
 
   var slide: Int = capacity
+
+  val semaphoreCheckAvailalbe = new Semaphore(0)
+
+  var busy: Boolean = false
 
   def read(size: Int): Array[Byte] = {
     this.synchronized {
@@ -18,6 +24,10 @@ class RecvBuffer(capacity: Int) {
       recvBuf = recvBuf.slice(realLen, recvBuf.length)
 
       slide += realLen
+
+      if (slide == capacity && busy) {
+        this.semaphoreCheckAvailalbe.release
+      }
 
       result
     }
@@ -110,6 +120,16 @@ class RecvBuffer(capacity: Int) {
     for (i <- linkList) {
       println("Start: " + i._1 + " End: " + i._2 + " Data: " + i._3.length)
     }
+  }
+
+  def waitAvailable() {
+    this.synchronized {
+      if (slide == capacity) {
+        return
+      }
+      this.busy = true
+    }
+    this.semaphoreCheckAvailalbe.acquire
   }
 
   def getSliding(): Int = {
