@@ -706,7 +706,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         val spl = (this.recvRTTRecord - this.sendRTTRecord) / 1000
         this.estRTT = ((1 - 0.125) * this.estRTT + 0.125 * spl).asInstanceOf[Long]
         this.rto = math.max(math.min(this.estRTT / 1000 * 2, 1000), 1)
-        println("RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto)
+        // println("RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto)
         this.rttValidFlag = false
       }
     }

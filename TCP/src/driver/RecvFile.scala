@@ -6,7 +6,7 @@ import java.net.InetAddress
 import tcp.TCPConnection
 
 class RecvFile(socket: Int, source: PrintWriter, tcp: TCP) extends Runnable {
-  val BufSize = 1024
+  val BufSize = 1024 * 10
   var buf: Array[Byte] = _
 
   var newSocket: Int = _

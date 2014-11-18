@@ -4,7 +4,7 @@ import java.io._
 import tcp.TCP
 
 class SendFile(socket: Int, source: BufferedReader, tcp: TCP) extends Runnable {
-  val BufSize = 1024
+  val BufSize = 1024 * 10
   var count: Long = 0
 
   def run() {
