@@ -61,6 +61,14 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   var dupAckCount: (Long, Int) = (0, 0)
 
+  // ackNumber, sendTime-Stamp
+  var rttValidFlag = false
+  var rto: Long = tcp.DefaultRTO
+  var estRTT: Long = 350
+  var seqRecord: Long = _
+  var sendRTTRecord: Long = _
+  var recvRTTRecord: Long = _
+
   // Hardcode previous and next network state
   previousState.put(TCPState.CLOSE, Array(TCPState.SYN_SENT, TCPState.LISTEN, TCPState.LAST_ACK, TCPState.TIME_WAIT))
   previousState.put(TCPState.LISTEN, Array(TCPState.CLOSE, TCPState.SYN_RECV))
@@ -224,7 +232,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
     this.synchronized {
       val payload = sendBuf.read(tcp.DefaultMSS)
       if (payload.length != 0 || needReply) {
-        tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload))
+        val seg = generateTCPSegment(payload)
+        if (!rttValidFlag) {
+          this.sendRTTRecord = System.nanoTime
+          this.seqRecord = seg.head.seqNum
+          this.rttValidFlag = true
+        }
+        tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, seg)
         needReply = false
       } else {
         this.wait
@@ -352,6 +366,11 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
           if (rmLen != 0) {
             needToResetTime = true
           }
+
+          // calculate RTO
+          if (this.seqRecord <= seg.head.ackNum) {
+            this.calculateRTO
+          }
         } else if (start > end && (seg.head.ackNum >= start || seg.head.seqNum <= end)) {
           if (seg.head.ackNum >= start) {
             val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
@@ -359,11 +378,25 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             if (rmLen != 0) {
               needToResetTime = true
             }
+
+            // calculate RTO
+            if (this.seqRecord <= end) {
+              this.calculateRTO
+            } else if (this.seqRecord <= seg.head.seqNum) {
+              this.calculateRTO
+            }
           } else {
             val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.ackNum
             this.sendBuf.removeFlightData(offset.asInstanceOf[Int])
             if (offset.asInstanceOf[Int] != 0) {
               needToResetTime = true
+            }
+
+            // calculate RTO
+            if (this.seqRecord <= end && this.seqRecord <= seg.head.seqNum) {
+              this.calculateRTO
+            } else if (this.seqRecord >= start) {
+              this.calculateRTO
             }
           }
           this.seqNum = seg.head.ackNum
@@ -378,7 +411,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
         // timeout thread
         dataTimeout = new Timer
-        dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+        dataTimeout.schedule(new DataTimeOut(tcp, this), rto, rto)
       }
 
       if (seg.payLoad.length != 0) {
@@ -437,7 +470,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             dataSendingThread.start
 
             // timeout thread
-            dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+            dataTimeout.schedule(new DataTimeOut(tcp, this), rto, rto)
 
             val ackSeg = replyTCPSegment(seg)
             ackSeg.head.ack = 1
@@ -472,7 +505,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             dataSendingThread.start
 
             // timeout thread
-            dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+            dataTimeout.schedule(new DataTimeOut(tcp, this), rto, rto)
           } else if (seg.head.syn == 1 && seg.head.ack == 1 && increaseNumber(seg.head.seqNum, 1) == this.ackNum && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.fin == 0) {
             // simultaneous
             this.seqNum = increaseNumber(this.seqNum, 1)
@@ -486,7 +519,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             dataSendingThread.start
 
             // timeout thread
-            dataTimeout.schedule(new DataTimeOut(tcp, this), tcp.DefaultRTO, tcp.DefaultRTO)
+            dataTimeout.schedule(new DataTimeOut(tcp, this), rto, rto)
           }
         case TCPState.FIN_WAIT1 =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
@@ -663,6 +696,19 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def getFlowWindow(): Int = {
     this.synchronized {
       dstFlowWindow
+    }
+  }
+
+  def calculateRTO() {
+    this.synchronized {
+      if (this.rttValidFlag) {
+        this.recvRTTRecord = System.nanoTime
+        val spl = (this.recvRTTRecord - this.sendRTTRecord) / 1000
+        this.estRTT = ((1 - 0.125) * this.estRTT + 0.125 * spl).asInstanceOf[Long]
+        this.rto = math.max(math.min(this.estRTT / 1000 * 2, 1000), 1)
+        println("RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto)
+        this.rttValidFlag = false
+      }
     }
   }
 }

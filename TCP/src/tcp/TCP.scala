@@ -25,7 +25,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val DefaultMSL = 2 * 60 * 1000
 
   // (ms)
-  val DefaultRTO = 30
+  val DefaultRTO: Long = 30
 
   // connect or close timeout (ms)
   val DefaultConnectOrCloseTimeout = 3 * 1000
