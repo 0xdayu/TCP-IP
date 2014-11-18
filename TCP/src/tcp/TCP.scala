@@ -16,7 +16,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val DefaultMultiplexingBuffSize = 2 * 1024 * 1024 * 1024 - 1
 
   // less than mtu
-  val DefaultMSS = 1024
+  val DefaultMSS = 1400 - 40
 
   // listen queue
   val PendingQueueSize = 65535
@@ -25,13 +25,16 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val DefaultMSL = 2 * 60 * 1000
 
   // (ms)
-  val DefaultRTO = 5
+  val DefaultRTO = 30
 
   // connect or close timeout (ms)
   val DefaultConnectOrCloseTimeout = 3 * 1000
 
   // times for retransmit
   val DefaultReTransmitTimes = 3
+
+  // default thread for multiple/demultiple
+  val DefaultThreads = 10
 
   val socketLeftBound = 3
   val socketRightBound = 65535

@@ -7,8 +7,9 @@ import scala.actors.threadpool.Executors
 
 class Multiplexing(nodeInterface: NodeInterface, tcp: TCP) extends Runnable {
   var done = true
-
-  val executors = Executors.newCachedThreadPool()
+  
+  // val executors = Executors.newCachedThreadPool()
+  val executors = Executors.newFixedThreadPool(tcp.DefaultThreads)
 
   def run() {
     //will repeat until the thread ends
