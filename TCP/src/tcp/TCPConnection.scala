@@ -110,6 +110,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         state = next
         if (checkState == next || next == TCPState.CLOSE) {
           semaphoreCheckState.release
+          semaphoreQueue.release
           // back to null
           checkState = null
         }
