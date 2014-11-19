@@ -8,6 +8,8 @@ import scala.compat.Platform
 import scala.collection.mutable.LinkedHashMap
 import java.util.concurrent.Semaphore
 import java.util.Timer
+import java.io.File
+import java.io.PrintWriter
 
 class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
@@ -74,6 +76,10 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   // congestion control
   var threshold: Int = tcp.DefaultFlowBuffSize
   var cwd: Int = 1 * tcp.DefaultMSS
+
+  // output file for RTO and cwd
+  val outputRTO = new PrintWriter(new File("outputRTO"))
+  val outputCWD = new PrintWriter(new File("outputCWD"))
 
   // Hardcode previous and next network state
   previousState.put(TCPState.CLOSE, Array(TCPState.SYN_SENT, TCPState.LISTEN, TCPState.LAST_ACK, TCPState.TIME_WAIT))
@@ -742,6 +748,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         this.estRTT = ((1 - 0.125) * this.estRTT + 0.125 * spl).asInstanceOf[Long]
         this.rto = math.max(math.min((this.estRTT * 1.0 / 1000 * 2).asInstanceOf[Int], tcp.DefaultRTOUp), tcp.DefaultRTOLow)
         // println("RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto)
+        val str = "RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto + "\n"
+        this.outputRTO.write(str, 0, str.length)
+
         this.rttValidFlag = false
       }
     }
@@ -775,6 +784,9 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       }
 
       // println("cwd: " + cwd)
+      val str = cwd.toString + "\n"
+      outputCWD.write(str, 0, str.length)
+
       sendBuf.setSliding(math.min(dstFlowWindow, cwd))
     }
   }

@@ -28,7 +28,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   val DefaultRTO: Long = 30
 
   val DefaultRTOUp = 1000
-  val DefaultRTOLow = 4
+  val DefaultRTOLow = 10
 
   val DefaultMaxNoReplyCount = 20
 
