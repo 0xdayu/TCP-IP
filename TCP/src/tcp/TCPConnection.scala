@@ -61,6 +61,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   var dupAckCount: (Long, Int) = (0, 0)
 
+  var noReplyCount = 0
+
   // ackNumber, sendTime-Stamp
   var rttValidFlag = false
   var rto: Long = tcp.DefaultRTO
@@ -324,6 +326,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
   def recvData(seg: TCPSegment) {
     this.synchronized {
+      noReplyCount = 0
+
       var needToResetTime = false
       var isFastRetransmit = false
 

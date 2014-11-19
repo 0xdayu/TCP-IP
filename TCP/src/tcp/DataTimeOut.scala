@@ -1,6 +1,7 @@
 package tcp
 
 import java.util.TimerTask
+import tcputil.TCPState
 
 class DataTimeOut(tcp: TCP, conn: TCPConnection) extends TimerTask {
   def run() {
@@ -12,6 +13,19 @@ class DataTimeOut(tcp: TCP, conn: TCPConnection) extends TimerTask {
       seq = conn.getSeq
     }
     var size = 0
+
+    if (conn.isEstablished && buf.length != 0) {
+      conn.synchronized {
+        conn.noReplyCount += 1
+      }
+      if (conn.noReplyCount == tcp.DefaultMaxNoReplyCount) {
+        println("Disconnect with remote node")
+        print("> ")
+        tcp.cleanTable(conn)
+        conn.setState(TCPState.CLOSE)
+        return
+      }
+    }
 
     while (buf.length != size) {
       val payload = buf.slice(size, size + tcp.DefaultMSS)
