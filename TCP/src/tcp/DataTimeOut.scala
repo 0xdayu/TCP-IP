@@ -7,9 +7,6 @@ class DataTimeOut(tcp: TCP, conn: TCPConnection) extends TimerTask {
     var buf: Array[Byte] = null
     var seq: Long = 0
 
-    // reduce cwd
-    conn.congestionControl(1, 0, 0)
-
     conn.synchronized {
       buf = conn.sendBuf.retransmit
       seq = conn.getSeq
@@ -22,5 +19,8 @@ class DataTimeOut(tcp: TCP, conn: TCPConnection) extends TimerTask {
 
       size += payload.length
     }
+
+    // reduce cwd
+    conn.congestionControl(1, 0, 0)
   }
 }

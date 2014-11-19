@@ -327,24 +327,6 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       var needToResetTime = false
       var isFastRetransmit = false
 
-      // fast retransmit
-      if (seg.head.ackNum > this.dupAckCount._1) {
-        this.dupAckCount = (seg.head.ackNum, 0)
-      } else if (seg.head.ackNum == this.dupAckCount._1) {
-        this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
-      }
-      if (dupAckCount._2 == 4 && sendBuf.getSendLength != 0) {
-        isFastRetransmit = true
-
-        dupAckCount = (dupAckCount._1, 0)
-        val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
-        if (payload.length != 0) {
-          tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload, this.seqNum, 0))
-        }
-      } else {
-        this.dupAckCount = (seg.head.ackNum, 0)
-      }
-
       // avoid sliding change
       this.recvBuf.synchronized {
         // receive the data
@@ -370,7 +352,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       this.sendBuf.synchronized {
         // deal with flight sending data
         var start = this.seqNum
-        var end = increaseNumber(start, this.sendBuf.getSliding)
+        // here, must be flow window not sliding window by math.min(dstFlowWindow, cwd)
+        var end = increaseNumber(start, this.dstFlowWindow)
         if (start <= end && seg.head.ackNum >= start && seg.head.ackNum <= end) {
           val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
 
@@ -423,6 +406,25 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         }
       }
 
+      // fast retransmit: same variable with needToResetTime
+      if (needToResetTime) {
+        this.dupAckCount = (seg.head.ackNum, 0)
+      } else if (seg.head.ackNum == this.dupAckCount._1) {
+        this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
+      }
+
+      if (dupAckCount._2 == 4) {
+        if (sendBuf.getSendLength != 0) {
+          isFastRetransmit = true
+
+          val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
+          if (payload.length != 0) {
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, generateTCPSegment(payload, this.seqNum, 0))
+          }
+        }
+        this.dupAckCount = (dupAckCount._1, 0)
+      }
+
       if (isFastRetransmit) {
         this.congestionControl(0, 0, 0)
       } else {
@@ -431,6 +433,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         }
       }
 
+      // receive the ack increasing or fast retransmit
       if (needToResetTime) {
         // cancel and set new timeout
         dataTimeout.cancel
@@ -733,7 +736,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         this.recvRTTRecord = System.nanoTime
         val spl = (this.recvRTTRecord - this.sendRTTRecord) / 1000
         this.estRTT = ((1 - 0.125) * this.estRTT + 0.125 * spl).asInstanceOf[Long]
-        this.rto = math.max(math.min(this.estRTT / 1000 * 2, 1000), 1)
+        this.rto = math.max(math.min((this.estRTT * 1.0 / 1000 * 2).asInstanceOf[Int], 1000), 4)
         // println("RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto)
         this.rttValidFlag = false
       }
@@ -746,7 +749,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         case 0 =>
           {
             // fast retransmit
-            this.cwd = (0.5 * this.cwd).asInstanceOf[Int]
+            this.cwd = math.max((0.5 * this.cwd).asInstanceOf[Int], tcp.DefaultMSS)
             this.threshold = this.cwd
           }
         case 1 =>
@@ -767,6 +770,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
           }
       }
 
+      // println("cwd: " + cwd)
       sendBuf.setSliding(math.min(dstFlowWindow, cwd))
     }
   }
