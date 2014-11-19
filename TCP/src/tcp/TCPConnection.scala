@@ -69,6 +69,10 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   var sendRTTRecord: Long = _
   var recvRTTRecord: Long = _
 
+  // congestion control
+  var threshold: Int = tcp.DefaultFlowBuffSize
+  var cwd: Int = 1 * tcp.DefaultMSS
+
   // Hardcode previous and next network state
   previousState.put(TCPState.CLOSE, Array(TCPState.SYN_SENT, TCPState.LISTEN, TCPState.LAST_ACK, TCPState.TIME_WAIT))
   previousState.put(TCPState.LISTEN, Array(TCPState.CLOSE, TCPState.SYN_RECV))
@@ -321,6 +325,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def recvData(seg: TCPSegment) {
     this.synchronized {
       var needToResetTime = false
+      var isFastRetransmit = false
 
       // fast retransmit
       if (seg.head.ackNum > this.dupAckCount._1) {
@@ -329,6 +334,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         this.dupAckCount = (dupAckCount._1, dupAckCount._2 + 1)
       }
       if (dupAckCount._2 == 4 && sendBuf.getSendLength != 0) {
+        isFastRetransmit = true
+
         dupAckCount = (dupAckCount._1, 0)
         val payload = sendBuf.fastRetransmit(tcp.DefaultMSS)
         if (payload.length != 0) {
@@ -356,17 +363,24 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         }
       }
 
+      // congestion control variable
+      var sendLen = 0
+      var totalLen = this.sendBuf.getSendLength
+
       this.sendBuf.synchronized {
         // deal with flight sending data
         var start = this.seqNum
         var end = increaseNumber(start, this.sendBuf.getSliding)
         if (start <= end && seg.head.ackNum >= start && seg.head.ackNum <= end) {
           val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
+
           this.sendBuf.removeFlightData(rmLen)
           this.seqNum = seg.head.ackNum
           if (rmLen != 0) {
             needToResetTime = true
           }
+
+          sendLen = rmLen
 
           // calculate RTO
           if (this.seqRecord <= seg.head.ackNum) {
@@ -380,6 +394,8 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
               needToResetTime = true
             }
 
+            sendLen = rmLen
+
             // calculate RTO
             if (this.seqRecord <= end) {
               this.calculateRTO
@@ -388,10 +404,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             }
           } else {
             val offset = math.pow(2, 32).asInstanceOf[Long] - start + seg.head.ackNum
-            this.sendBuf.removeFlightData(offset.asInstanceOf[Int])
+            val rmLen = offset.asInstanceOf[Int]
+            this.sendBuf.removeFlightData(rmLen)
             if (offset.asInstanceOf[Int] != 0) {
               needToResetTime = true
             }
+
+            sendLen = rmLen
 
             // calculate RTO
             if (this.seqRecord <= end && this.seqRecord <= seg.head.seqNum) {
@@ -401,6 +420,14 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             }
           }
           this.seqNum = seg.head.ackNum
+        }
+      }
+
+      if (isFastRetransmit) {
+        this.congestionControl(0, 0, 0)
+      } else {
+        if (totalLen != 0 && sendLen != 0) {
+          this.congestionControl(2, sendLen, totalLen)
         }
       }
 
@@ -435,7 +462,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
       }
 
       dstFlowWindow = seg.head.winSize
-      this.sendBuf.setSliding(dstFlowWindow)
+      this.sendBuf.setSliding(math.min(dstFlowWindow, cwd))
       state match {
         case TCPState.CLOSE =>
         case TCPState.ESTABLISHED =>
@@ -710,6 +737,37 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         // println("RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto)
         this.rttValidFlag = false
       }
+    }
+  }
+
+  def congestionControl(congState: Int, sendLen: Int, totalLen: Int) {
+    this.synchronized {
+      congState match {
+        case 0 =>
+          {
+            // fast retransmit
+            this.cwd = (0.5 * this.cwd).asInstanceOf[Int]
+            this.threshold = this.cwd
+          }
+        case 1 =>
+          {
+            // timeout
+            this.threshold = (0.5 * this.cwd).asInstanceOf[Int]
+            this.cwd = 1 * tcp.DefaultMSS
+          }
+        case 2 =>
+          {
+            // normal case
+            if (this.cwd >= this.threshold) {
+              val increase = ((sendLen.asInstanceOf[Double] / totalLen) * tcp.DefaultMSS).asInstanceOf[Int]
+              this.cwd += increase
+            } else {
+              this.cwd += sendLen
+            }
+          }
+      }
+
+      sendBuf.setSliding(math.min(dstFlowWindow, cwd))
     }
   }
 }

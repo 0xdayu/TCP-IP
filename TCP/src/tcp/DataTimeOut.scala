@@ -6,6 +6,10 @@ class DataTimeOut(tcp: TCP, conn: TCPConnection) extends TimerTask {
   def run() {
     var buf: Array[Byte] = null
     var seq: Long = 0
+
+    // reduce cwd
+    conn.congestionControl(1, 0, 0)
+
     conn.synchronized {
       buf = conn.sendBuf.retransmit
       seq = conn.getSeq
