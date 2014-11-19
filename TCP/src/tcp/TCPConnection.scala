@@ -736,7 +736,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         this.recvRTTRecord = System.nanoTime
         val spl = (this.recvRTTRecord - this.sendRTTRecord) / 1000
         this.estRTT = ((1 - 0.125) * this.estRTT + 0.125 * spl).asInstanceOf[Long]
-        this.rto = math.max(math.min((this.estRTT * 1.0 / 1000 * 2).asInstanceOf[Int], 1000), 4)
+        this.rto = math.max(math.min((this.estRTT * 1.0 / 1000 * 2).asInstanceOf[Int], tcp.DefaultRTOUp), tcp.DefaultRTOLow)
         // println("RTT: " + spl + ", estRTT: " + estRTT + ", RTO: " + rto)
         this.rttValidFlag = false
       }
