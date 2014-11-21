@@ -467,7 +467,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
   def connectionBehavior(srcip: InetAddress, dstip: InetAddress, seg: TCPSegment) {
     var timeWait = false
     this.synchronized {
-      // TODO: Maybe we should change
+      // Maybe we should change
       if (seg.head.rst == 1) {
         println("Attempted to connect, but connection was reset.")
         tcp.virClose(socket)
@@ -495,10 +495,22 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
               // wakeup
               this.recvBuf.wakeup
             }
+          } else if (seg.head.ack == 1 && seg.head.syn == 1 && seg.head.fin == 0) {
+            // ack transmit
+            val newSeg = this.replyTCPSegment(seg)
+            newSeg.head.ack = 1
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
           }
         case TCPState.CLOSE_WAIT =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 0) {
             recvData(seg)
+          } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 1) {
+            // ack transmit
+            val newSeg = this.replyTCPSegment(seg)
+            newSeg.head.ack = 1
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
           }
         case TCPState.SYN_SENT =>
           // expect to get segment with syn+ack (3 of 3 handshakes)
@@ -561,6 +573,13 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
 
             // timeout thread
             dataTimeout.schedule(new DataTimeOut(tcp, this), rto, rto)
+          } else if (seg.head.syn == 1 && seg.head.fin == 0) {
+            // ack transmit
+            val newSeg = this.replyTCPSegment(seg)
+            newSeg.head.ack = 1
+            newSeg.head.syn = 1
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
           }
         case TCPState.FIN_WAIT1 =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
@@ -579,9 +598,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             val newSeg = this.replyTCPSegment(seg)
             newSeg.head.ack = 1
 
-            val clone = ConvertObject.cloneSegment(newSeg)
             tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
-            this.setTimeOut(clone)
 
           } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 1) {
 
@@ -611,8 +628,12 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             recvData(seg)
           }
         case TCPState.TIME_WAIT =>
-          {
-            // do nothing
+          if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 1) {
+            // ack retransmit
+            val newSeg = this.replyTCPSegment(seg)
+            newSeg.head.ack = 1
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
           }
         case TCPState.LAST_ACK =>
           if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.ackNum == increaseNumber(this.seqNum, 1) && seg.head.seqNum == this.ackNum && seg.head.fin == 0) {
@@ -639,6 +660,12 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             setState(TCPState.TIME_WAIT)
 
             timeWait = true
+          } else if (seg.head.ack == 1 && seg.head.syn == 0 && seg.head.fin == 1) {
+            // ack retransmit
+            val newSeg = this.replyTCPSegment(seg)
+            newSeg.head.ack = 1
+
+            tcp.multiplexingBuff.bufferWrite(srcIP, dstIP, newSeg)
           }
       }
     }
