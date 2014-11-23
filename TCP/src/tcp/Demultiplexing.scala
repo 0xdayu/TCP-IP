@@ -18,7 +18,12 @@ class Demultiplexing(tcp: TCP) extends Runnable {
         //        PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
         //        println("Demultiplexing end")
 
+        //        val ran = scala.util.Random
+        //        if (ran.nextInt(100) >= 2) {
         executors.execute(new RecvTCPSegmentHandler(tuple, tcp))
+        //        } else {
+        //          // println("2% drop the packet!")
+        //        }
       }
     }
   }
