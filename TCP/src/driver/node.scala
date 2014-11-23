@@ -117,7 +117,7 @@ object node {
     println("- [h]help: Print this list of commands.")
     println("- [li]interfaces: Print information about each interface, one per line.")
     println("- [lr]routes: Print information about the route to each known destination, one per line.")
-    println("- [ls]sockets: List all sockets, along with the state the TCP connection associated with them is in, and their current window sizes.")
+    println("- [ls]sockets: List all sockets, along with the state the TCP connection associated with them is in.")
     println("- [d]down <integer>: Bring an interface \"down\".")
     println("- [u]up <integer>: Bring an interface \"up\" (it must be an existing interface, probably one you brought down).")
     println("- [a]accept <port>: : Spawn a socket, bind it to the given port, and start accepting connections on that port.")

@@ -131,7 +131,7 @@ class TCP(nodeInterface: ip.NodeInterface) {
   def virConnect(socket: Int, addr: InetAddress, port: Int) {
     val ip = nodeInterface.getSrcAddr(addr)
     if (ip == null) {
-      throw new DestinationUnreachable(addr)
+      throw new DestinationUnreachableException(addr)
     }
 
     this.synchronized {
