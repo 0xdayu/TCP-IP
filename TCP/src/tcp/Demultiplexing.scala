@@ -14,16 +14,19 @@ class Demultiplexing(tcp: TCP) extends Runnable {
     while (done) {
       val tuple = tcp.demultiplexingBuff.bufferRead
       if (tuple != null) {
-        //        println("Demultiplexing start")
-        //        PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
-        //        println("Demultiplexing end")
+        if (tcp.TraceDemulti) {
+          println("Demultiplxing Time: " + System.nanoTime)
+          println("Demultiplexing start")
+          PrintTCPSegment.printBinary(ConvertObject.TCPSegmentToByte(tuple._3))
+          println("Demultiplexing end")
+        }
 
-        //        val ran = scala.util.Random
-        //        if (ran.nextInt(100) >= 2) {
-        executors.execute(new RecvTCPSegmentHandler(tuple, tcp))
-        //        } else {
-        //          // println("2% drop the packet!")
-        //        }
+        val ran = scala.util.Random
+        if (ran.nextInt(100) >= tcp.DefaultLoss) {
+          executors.execute(new RecvTCPSegmentHandler(tuple, tcp))
+        } else {
+          // println(tcp.DefaultLoss + "% drop the packet!")
+        }
       }
     }
   }

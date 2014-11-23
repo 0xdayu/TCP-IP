@@ -41,6 +41,13 @@ class TCP(nodeInterface: ip.NodeInterface) {
   // default thread for multiple/demultiple
   val DefaultThreads = 10
 
+  // default loss packet [0, 100]
+  val DefaultLoss = 0
+
+  // turn on trace of tcp packet
+  val TraceMulti = false
+  val TraceDemulti = false
+
   val socketLeftBound = 3
   val socketRightBound = 65535
 
