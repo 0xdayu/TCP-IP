@@ -2,6 +2,7 @@ package driver
 
 import java.io._
 import tcp.TCP
+import exception.UninitialSocketException
 
 class SendFile(socket: Int, source: BufferedReader, tcp: TCP) extends Runnable {
   val BufSize = 1024 * 10
@@ -29,6 +30,7 @@ class SendFile(socket: Int, source: BufferedReader, tcp: TCP) extends Runnable {
       println("Sendfile on socket " + socket + " done, " + "effective bandwidth: " + f"$effectiveBandwidth%.1f" + " MB/s")
       print("> ")
     } catch {
+      case e: UninitialSocketException => return
       case e: Exception => println(e.getMessage)
     }
   }
