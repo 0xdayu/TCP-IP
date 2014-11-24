@@ -1,6 +1,10 @@
 TCP over IP over UDP
 ====================
 
+About
+-----
+One monitor, two men(Dev and QA on turn), seven weeks for peer coding, more than 70 scala files, more than 100 commits, more than 4400 lines code, sending 5GB data reliably by 11MB/s. Now, we have own TCP over own IP over UDP in Scala.
+
 IP Design
 ---------
 1.	NodeInterface and LinkInterface:
@@ -282,4 +286,10 @@ Test 1GB data, based on Mac 16 GB 1600 MHz DDR3, 2.7 GHz Intel Core i7
 
 4.	Effective bandwidth (a perfect link, two nodes, 5% lost, no congection control): 8 MB/s (64Mb/s)
 
-Test 5GB data for all the sequence number range from 0 to 2^32 - 1, it is successful and effective bandwidth: 11MB/s (88Mb/ss)
+Test 5GB data for all the sequence number range from 0 to 2^32 - 1, it is successful and effective bandwidth: 11MB/s (88Mb/s)
+
+Limitation or Bug
+-----------------
+1.	All the interfaces will be sent for periodic update. It means if the user brings down one interface, it will update after 5s or remove from other nodes after 12s. It makes sense if the user brings down, then brings up quickly (reboot). We don't update the RIP for this situation.
+
+2.	All the codes are compiled to byte code, then running on the JVM. It will be a little slower than other binary code. In addition, if we send data file to remote node with more than one hops, it will be very slow. This is due to some loss in each node, which is limited by UDP buffer.
