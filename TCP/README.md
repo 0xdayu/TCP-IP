@@ -1,5 +1,5 @@
-README TCP over IP over UDP
-===========================
+TCP over IP over UDP
+====================
 
 IP Design
 ---------
@@ -79,7 +79,7 @@ TCP Design
 
 	  Here, we can see if there is hole in the pending array, it will store them or merge them until the data starting from 0 and deliver this slice. The user can read from receiving buffer if there is some data. Otherwise, it may block here. In addition, we deliver data from pending buffer to receiving buffer, the function will return the length of delivering data. Because, we don't deal with any sequence number here and it will deal with this logic in who uses this wrapping buffer.
 
-	* Sequence/acknowledge number: at the beginning, the sequence number is a random value and acknowledge number will be updated on the three-shake. We also provide function to increase number depending whether it will start from 0. The TCB controls the sequence or acknowledge number and sending or receiving buffer only knows the difference between new or orignal number.
+	* Sequence/acknowledge number: at the beginning, the sequence number is a random value and acknowledge number will be updated on the three-way handshake. We also provide function to increase number depending whether it will start from 0. The TCB controls the sequence or acknowledge number and sending or receiving buffer only knows the difference between new or orignal number.
 
 	* Flow control: the sending will know the advertised window size (flow window). The sliding window size of sending is depending on the minimum value between destination receiving flow window size and congection window size (Extra Credit). Sender keeps sending 1-byte segments when window size is 0 to probe the remote window size.
 
@@ -88,7 +88,7 @@ TCP Design
 	* Timeout: two kinds of timeout
 		*	Connecting or teardown: it will 3 re-transmit SYN or FIN for connecting or teardown. Once it receives the valid ack back, it will cancel the timeout. Otherwise, after 9 seconds (3 * 3s), it will change the state to CLOSE and remove this connection.
 
-		*	Data sending timeout: when sending some segments, we can't receive the updated ACKs after one RTO, which results into sending all the pending data (under the sliding window size) in the flight buffer from wrapping sending buffer. Otherwise, we cancel this timeout and set again by computed RTO
+		*	Data sending timeout: when sending some segments, we can't receive the updated ACKs after one RTO, which results into sending all the pending data (under the sliding window size) in the flight buffer from wrapping sending buffer. Otherwise, we cancel this timeout and set again by computed RTO. Once, there is no change for 20 times and it will set to CLOSE state, then disconnect.
 
 	* RTO based on RTT: when sending segment, we record and set flag to wait for receiving. when receiving the segment that satisfied the sequence number of sending one, we computer SRTT and RTO. Later, set flag back to wait for sending.
 		*	SRTT = ( ALPHA * SRTT ) + ((1-ALPHA) * RTT)
@@ -104,7 +104,7 @@ TCP Design
 
 	*	Data sending: this thread only starts to send data if and only if there is some data in sending buffer or receiving data, which means it needs to reply ACK. Otherwise, wait there. It is created after setting established state.
 
-	*	Connect or teardown timeout: in the each state of three-shake or teardown, it will set timeout thread once sending out SYN or FIN segment. After changing state, it will be cancelled.
+	*	Connect or teardown timeout: in the each state of three-way handshake or teardown, it will set timeout thread once sending out SYN or FIN segment. After changing state, it will be cancelled.
 
 	*	Data sending timeout: similar to connect or teardown timeout thread, this thread is created after setting established state. It will wait for some time after sending some segments. Once receiving data, the timeout is reset. Otherwise, it is fired and sends all the flight data under sliding window size.
 
@@ -122,23 +122,25 @@ TCP Design
 	*	Sending/receiving buffer: the synchronized lock control each buffer. This aim is to avoid reading and writing at the same time.
 
 5.	TCP API:
-	*	virSocket:
+	*	virSocket: register one socket, it will find the minimum free socket number starting from 3
 
-	*	virBind:
+	*	virBind: given port number, bind to the socket
 
-	*	virListen:
+	*	virListen: give the socket and set to LISTEN state
 
-	*	virConnect:
+	*	virConnect: connect to given ip and port until established or 3 re-transmitted SYNs timeout
 
-	*	virAccept:
+	*	virAccept: poll one socket from listening queue and implement three-way handshake
 
-	*	virRead:
+	*	virRead: read from given socket
 
-	*	virShutdown:
+	*	virWrite: write to given socket
 
-	*	virClose:
+	*	virShutDown: depending on the type, block read/write/both, here, it doesn't remove from socket array
 
-6 	Exception(Scala):
+	*	virClose: it will send FIN to remote connection and remove itself from socket array, blocking writing
+
+6. 	Exception(Scala):
 	*	BoundedSocketException: the socket has been used
 
 	*	DestinationUnreadable: the remote ip can't be reachable
@@ -223,5 +225,25 @@ IP (TCP doesn't send MSS larger than mtu):
 
 3.	The time out (20s) of assembling is similar to that of expire
 
-TCP:
+TCP (Congection control):
 
+1.	Slow Start: start from one MSS, sendLen-the length for removing from flight buffer after receiving, totalLen-the total length of flight buffer
+	*	cwd >= threshold: cwd = cwd + (sendLen/totalLen) * MSS
+
+	*	cwd < threshold: cwd = cwd + sendLen
+
+2.	Three duplicate acks: we set to half of congection window size, change threshold to this new congection window size
+
+3.	Data sending timeout: we set threshold to half of congection window size and set congection window size to one MSS
+
+Performance
+-----------
+Test 1GB data, based on Mac 16 GB 1600 MHz DDR3, 2.7 GHz Intel Core i7
+
+1.	Effective bandwidth (a perfect link, two nodes, no loss): 10 MB/s (80Mb/s)
+
+2.	Effective bandwidth (a perfect link, two nodes, 2% lost): 5 MB/s (40Mb/s), once lost, it may affect congection window, timeout and set to one MSS
+
+3.	Effective bandwidth (a perfect link, two nodes, 2% lost, no congection control): 10 MB/s (80Mb/s)
+
+4.	Effective bandwidth (a perfect link, two nodes, 5% lost, no congection control): 8 MB/s (64Mb/s)
