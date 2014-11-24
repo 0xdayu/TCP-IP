@@ -364,6 +364,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
         var start = this.seqNum
         // here, must be flow window not sliding window by math.min(dstFlowWindow, cwd)
         var end = increaseNumber(start, this.dstFlowWindow)
+
         if (start <= end && seg.head.ackNum >= start && seg.head.ackNum <= end) {
           val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
 
@@ -379,7 +380,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
           if (this.seqRecord <= seg.head.ackNum) {
             this.calculateRTO
           }
-        } else if (start > end && (seg.head.ackNum >= start || seg.head.seqNum <= end)) {
+        } else if (start > end && (seg.head.ackNum >= start || seg.head.ackNum <= end)) {
           if (seg.head.ackNum >= start) {
             val rmLen = (seg.head.ackNum - start).asInstanceOf[Int]
             this.sendBuf.removeFlightData(rmLen)
@@ -392,7 +393,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             // calculate RTO
             if (this.seqRecord <= end) {
               this.calculateRTO
-            } else if (this.seqRecord <= seg.head.seqNum) {
+            } else if (this.seqRecord <= seg.head.ackNum) {
               this.calculateRTO
             }
           } else {
@@ -406,7 +407,7 @@ class TCPConnection(skt: Int, port: Int, tcp: TCP) {
             sendLen = rmLen
 
             // calculate RTO
-            if (this.seqRecord <= end && this.seqRecord <= seg.head.seqNum) {
+            if (this.seqRecord <= end && this.seqRecord <= seg.head.ackNum) {
               this.calculateRTO
             } else if (this.seqRecord >= start) {
               this.calculateRTO
