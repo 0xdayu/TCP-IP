@@ -247,3 +247,5 @@ Test 1GB data, based on Mac 16 GB 1600 MHz DDR3, 2.7 GHz Intel Core i7
 3.	Effective bandwidth (a perfect link, two nodes, 2% lost, no congection control): 10 MB/s (80Mb/s)
 
 4.	Effective bandwidth (a perfect link, two nodes, 5% lost, no congection control): 8 MB/s (64Mb/s)
+
+5.	Test 5GB for all the sequence number range from 0 to 2^32 - 1, it is successful and effective bandwidth: 11MB/s (88Mb/ss)
