@@ -114,7 +114,7 @@ TCP Design
 
 	*	Sending file: application level, only when starting to send the data from file.
 
-4.	Lock: three level, we keep the lock order as TCP -> TCP connection -> Sending/receiving buffer, we avoid locking high level in the low level.
+4.	Lock: three levels, we keep the lock order as TCP -> TCP connection -> Sending/receiving buffer, we avoid locking high level in the low level.
 	*	TCP: the synchronized lock controls all the sockets, mapping sockets to each connection, mapping client/server tuples to each conncection. It will make sure they are synchronized to do any modify or read from global variables.
 
 	*	TCP connection(TCB): the synchronized lock controls each connection. It will make sure sending segments and receiving segments are not same time. Because two behaviors may update or read acks or seqs. Only one thread can deal with this conncection.
@@ -236,6 +236,40 @@ TCP (Congection control):
 
 3.	Data sending timeout: we set threshold to half of congection window size and set congection window size to one MSS
 
+Default Value
+-------------
+1.	(De)Multiplexing buffer size: 2 * 1024 * 1024 * 1024 - 1 Bytes
+
+2.	Flow buffer size: 64 * 1024 - 1 Bytes
+
+3.	MSS: 1400 - 40 Bytes
+
+4. 	MTU: 1400 Bytes
+
+5.	Listen pending queue: 64 * 1024 - 1 Bytes
+
+6.	MSL: 2 * 60 * 1000 ms
+
+7.	Retransmit times of connection or teardown: 3
+
+8.	Timeout of connection or teardown: 3 * 1000 ms
+
+9.	Retransmit of data fro the same ACKs: 20
+
+10.	Threads pool: 10
+
+11.	Socket: 3 - 65535
+
+12.	Port: 1024 - 65535
+
+13.	Loss: 0%, the range is [0%, 100%]
+
+14.	Trace for multiplex/demuliplex: false (turn off debug printing)
+
+15.	RTO: initial - 30 ms, upbound - 1000 ms, lowbound - 10 ms
+
+16.	I/O file: 1024 * 10 bytes
+
 Performance
 -----------
 Test 1GB data, based on Mac 16 GB 1600 MHz DDR3, 2.7 GHz Intel Core i7
@@ -248,4 +282,4 @@ Test 1GB data, based on Mac 16 GB 1600 MHz DDR3, 2.7 GHz Intel Core i7
 
 4.	Effective bandwidth (a perfect link, two nodes, 5% lost, no congection control): 8 MB/s (64Mb/s)
 
-5.	Test 5GB for all the sequence number range from 0 to 2^32 - 1, it is successful and effective bandwidth: 11MB/s (88Mb/ss)
+Test 5GB data for all the sequence number range from 0 to 2^32 - 1, it is successful and effective bandwidth: 11MB/s (88Mb/ss)
