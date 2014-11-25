@@ -105,28 +105,28 @@ TCP Design
 		*	RTO = min(1000, max(10, 2 * SRTT)) - unit: millisecond
 
 3.	Threads:
-	*	Demultiplex: one demultiplex control thread and one fixed thread pool that has 10 threads. When reading one segment from demultiplexing buffer, it will call one thread from pool in order to deal with this segment in TCP level.
+	*	Demultiplexing: We implemented demultiplexing by a control thread, which contains a fixed thread pool. When a segment is fetched from the demultiplexing buffer, one thread in the thread pool will deliver this segment to the TCP level.
 
-	*	Multiplex: one multiplex control thread and one fixed thread pool that has 10 threads. When reading one segment from multiplexing buffer, it will call one thread from pool in order to send to IP level
+	*	Multiplexing: We implemented multiplexing by a control thread, which also contains a fixed thread pool. When a segment need sent from the multiplexing buffer, one thread in the thread pool will deliver this segment to the IP level.
 
-	*	Data sending: this thread only starts to send data if and only if there is some data in sending buffer or receiving data, which means it needs to reply ACK. Otherwise, wait there. It is created after setting established state.
+	*	Data sending: This thread only works for sending data if and only if there is some data in sending buffer or receiving data, which is created after the three-way handshake finished.
 
-	*	Connect or teardown timeout: in the each state of three-way handshake or teardown, it will set timeout thread once sending out SYN or FIN segment. After changing state, it will be cancelled.
+	*	Connect or teardown timeout: This thread only works in the state of three-way handshake and teardown. It will set timeout thread once sending out SYN or FIN segment. Timeout will be cancelled if state changes.
 
-	*	Data sending timeout: similar to connect or teardown timeout thread, this thread is created after setting established state. It will wait for some time after sending some segments. Once receiving data, the timeout is reset. Otherwise, it is fired and sends all the flight data under sliding window size.
+	*	Data sending timeout: similar to connect or teardown timeout thread, this thread is created after setting established state. It will wait for some time after sending some segments. Once receiving data, the timeout will be reset. Otherwise, it will resend all the flight data under sliding window size and reset the timeout.
 
-	*	Accept: application level, only when listening server receives some clients. The server offers the clients into queue, the accept thread poll out each one. 
+	*	Accept: When the server is listening on a port, a client try to connect to this port and the server will store this connection into a queue. The accept thread will dequeue a pending connection.
 
-	*	Receive file: application level, only when starting to receive the data into file.
+	*	Receive file: application level, only when starting to receive data into file.
 
-	*	Sending file: application level, only when starting to send the data from file.
+	*	Sending file: application level, only when starting to send data from file.
 
 4.	Lock: three levels, we keep the lock order as TCP -> TCP connection -> Sending/receiving buffer, we avoid locking high level in the low level.
-	*	TCP: the synchronized lock controls all the sockets, mapping sockets to each connection, mapping client/server tuples to each conncection. It will make sure they are synchronized to do any modify or read from global variables.
+	*	TCP: the synchronized lock controls all sockets, mapping sockets to each connection, mapping client/server tuples to each conncection. It will make sure they are synchronized to do any modifications or read from global variables.
 
-	*	TCP connection(TCB): the synchronized lock controls each connection. It will make sure sending segments and receiving segments are not same time. Because two behaviors may update or read acks or seqs. Only one thread can deal with this conncection.
+	*	TCP connection(TCB): the synchronized lock controls each connection. It will make sure sending segments and receiving segments will not be handled by the same time, because of the consistency of acks and seqs.
 
-	*	Sending/receiving buffer: the synchronized lock control each buffer. This aim is to avoid reading and writing at the same time.
+	*	Sending/receiving buffer: the synchronized lock controls each buffer, which aims to avoid reading and writing at the same time.
 
 5.	TCP API:
 	*	virSocket: register one socket, it will find the minimum free socket number starting from 3
@@ -135,7 +135,7 @@ TCP Design
 
 	*	virListen: give the socket and set to LISTEN state
 
-	*	virConnect: connect to given ip and port until established or 3 re-transmitted SYNs timeout
+	*	virConnect: connect to a given ip and port until established or 3 re-transmitted SYNs timeout
 
 	*	virAccept: poll one socket from listening queue and implement three-way handshake
 
@@ -150,7 +150,7 @@ TCP Design
 6. 	Exception(Scala):
 	*	BoundedSocketException: the socket has been used
 
-	*	DestinationUnreadable: the remote ip can't be reachable
+	*	DestinationUnreadable: the remote ip is unreachable
 
 	*	ErrorTCPStateException: error tcp state when expecting another state
 
@@ -293,6 +293,6 @@ Test 5GB data for all the sequence number range from 0 to 2^32 - 1, it is succes
 
 Limitation or Bug
 -----------------
-1.	All the interfaces will be sent for periodic update. It means if the user brings down one interface, it will update after 5s or remove from other nodes after 12s. It makes sense if the user brings down, then brings up quickly (reboot). We don't update the RIP for this situation.
+1.	All interfaces will be sent for periodic update, which means if the user brings down one interface, it will update after 5s or remove from other nodes after 12s. We think it makes sense in this senario: if the user brings down an interface, and brings up quickly (reboot). We don't need to update the RIP for this situation.
 
 2.	All the codes are compiled to byte code, then running on the JVM. It will be a little slower than other binary code. In addition, if we send data file to remote node with more than one hops, it will be very slow. This is due to some loss in each node, which is limited by UDP buffer.
