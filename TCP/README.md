@@ -3,58 +3,61 @@ TCP over IP over UDP
 
 About
 -----
-One monitor, two men(Dev and QA on turn), seven weeks for peer coding, more than 70 scala files, more than 100 commits, more than 4400 lines code, sending 5GB data reliably by 11MB/s. Now, we have own TCP over own IP over UDP in Scala.
+One monitor, two men(Dev and QA by turns), seven weeks for peer coding, more than 70 scala files, more than 100 commits, more than 4400 lines code, sending 5GB data reliably in 11MB/s (Effective Bandwidth). Now, we have own TCP over own IP over UDP in Scala.
 
 IP Design
 ---------
+We treat UDP as our link layer, since the network model of UDP and Ethernet are similar. Our own IP and TCP are built on top of real UDP.
 1.	NodeInterface and LinkInterface:
-	* NodeInterface: consist of UDP port, recv or send packet, a list of LinkInterface, it contains the configuration of this node.
+	* NodeInterface: Abstraction of Node, contains several LinkInterfaces belonged to this node. Also, it implements logics for forwarding, routing, multiplexing/demultiplexing to up-layer TCP, etc.
 
-	* LinkInterface: link information and up or down.
+	* LinkInterface: Abstraction of NIC, contains information about the NIC, includes NIC information, buffer status, etc. Buffers in LinkInterface emulates queues in real NICs, storing packets that need to send to the network or receive from the network.
 
 2.	Threads:
 	* User input thread (main)
 
-	* Sending thread: try to get packet from each outBuffer of interface
+	* Sending thread: Fetch packets from each output Queue(Buffer) in LinkInterface and push these packets into the network 
 
-	* Receiving thread: try to push the packet from UDP into each inBuffer of interface
+	* Receiving thread: Get packets from network, and store these packets to corresponding input Queue(Buffer) in LinkInterface, based on virtual IP
 	
-	* HandlerManager thread: the user should register two kinds of handler for protocol 0 and protocol 200
+	* HandlerManager thread: Get packets from input Queue and send to corresponding handler in the Node, based on protocol in the IP head (0 for RIP, 200 for Data, 6 for TCP)
 
-	* PeriodicUpdate (5s) thread: send out all the routing table
+	* PeriodicUpdate (5s) thread: Periodicly generate hearbeat RIP advertisements to all neighbors, includes all routing table and all up interfaces
 
-	* Expire (12s) thread: remove the entry from routing table has expired
+	* Expire (12s) thread: Remove expired routes in the routing table, based on periodicUpdate received by neighbors
 
-3. 	Two kinds of Buffer for each LinkInterface:
-	* inBuffer: read the data from UDP and assign packet to the corresponding inBuffer by Receiving thread, the HandlerManger thread will read the packet from inBuffer to call the handler depending on the protocol
+3. 	Queues(Buffers) in LinkInterface:
+	* Input Queue (inBuffer): Store packets received by the Receiving thread from real UDP, and wait for HandlerManager thread to retrieve and get to the corresponding handler
 
-	* outBuffer: HandlerManger will assign the output packet to the outBuffer of the corresponding interface, the sending thread will send it by UDP
+	* Output Queue (outBuffer): When handlers finish corresponding logic, they may modify the original packets or generate new packets. After that, these packets will be stored in correct output queues, waiting for sending thread to send to the real network
 
 4.	Lock: 
-	* inBuffer/outBuffer - synchronized for read and write
+	* inBuffer/outBuffer - mutex for read/write
 
 	* routing table - read/write lock
 
 	* expire - read/write lock
 
 5.	RIP:
-	* Total sending: periodic updates (LinkedHashMap to store address and time) and response to RIP request
+	
+	The node will generate three kinds of RIP advertisement:
+	* Periodic Updates: Send all routing table entries and interfaces
 
-	* Part sending: triggered updates
+	* RIP updates: Only send modified updates
 
-	* Sending interfaces: 1) when response to RIP request 2) when periodic updates
+	* RIP response: Send all routing table entries and interfaces to reply a RIP request
 
 6. 	Convert Number/Object:
 
-	In the node, all the things are object, we only convert bytes to object when receiving from UDP or convert object to bytes when sending by UDP. In the Scala, there is no unsigned type, we only make the type larger to be fit of that size, such as int corresponding to uint16 in C.
+	We follow OOP model to design and implement the whole TCP/IP. So, in the node, everything is object, we convert all packet(bytes) from the network to object when we need to handle logic operations. Meanwhile, when we need to push it back to the network, we convert these objects to bytes, based on  IP head. In addition, in Scala, we also need to do bit shifting ourself, since Scala doesn't support uint16.
 
 7. 	Identification:
 
-	Start from 0, until meeting 2^16 - 1, then start 0 again.
+	The range for identifier is from 0 to 2^16 - 1.
 
 8.	Debug function:
 
-	In PrintIPPacket, you can choose print as general string or binary code to give more information about receiving or sending
+	Our IP provides will log packetts, which can print received and sent packets in string or binary
 
 TCP Design
 ----------
