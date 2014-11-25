@@ -8,7 +8,9 @@ One monitor, two men(Dev and QA by turns), seven weeks for peer coding, more tha
 IP Design
 ---------
 We treat UDP as our link layer, since the network model of UDP and Ethernet are similar. Our own IP and TCP are built on top of real UDP.
+
 1.	NodeInterface and LinkInterface:
+
 	* NodeInterface: Abstraction of Node, contains several LinkInterfaces belonged to this node. Also, it implements logics for forwarding, routing, multiplexing/demultiplexing to up-layer TCP, etc.
 
 	* LinkInterface: Abstraction of NIC, contains information about the NIC, includes NIC information, buffer status, etc. Buffers in LinkInterface emulates queues in real NICs, storing packets that need to send to the network or receive from the network.
